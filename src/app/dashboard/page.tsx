@@ -27,8 +27,10 @@ import {
 import {
   getAIAnalysis,
   getMarketQuotes,
+  getPerformanceSummary,
   type AIAnalysisResponse,
   type MarketQuote,
+  type PerformanceSummary,
 } from "@/lib/signalpilot-api";
 
 import SignalPilotNavigation from "@/components/SignalPilotNavigation";
@@ -51,16 +53,25 @@ export default function DashboardPage() {
   const [aiAnalysis, setAiAnalysis] =
     useState<AIAnalysisResponse | null>(null);
 
+  const [performance, setPerformance] =
+    useState<PerformanceSummary | null>(null);
+
   const [loadingMarkets, setLoadingMarkets] =
     useState(true);
 
   const [loadingAI, setLoadingAI] =
     useState(true);
 
+  const [loadingPerformance, setLoadingPerformance] =
+    useState(true);
+
   const [marketError, setMarketError] =
     useState<string | null>(null);
 
   const [aiError, setAIError] =
+    useState<string | null>(null);
+
+  const [performanceError, setPerformanceError] =
     useState<string | null>(null);
 
   const hasLoadedRef = useRef(false);
@@ -128,8 +139,35 @@ export default function DashboardPage() {
     };
 
 
+    const loadPerformance = async () => {
+      setLoadingPerformance(true);
+      setPerformanceError(null);
+
+      try {
+        const response =
+          await getPerformanceSummary();
+
+        setPerformance(response.summary);
+      } catch (error) {
+        console.error(
+          "Failed to load performance summary:",
+          error,
+        );
+
+        setPerformanceError(
+          error instanceof Error
+            ? error.message
+            : "Unable to load performance data.",
+        );
+      } finally {
+        setLoadingPerformance(false);
+      }
+    };
+
+
     loadMarkets();
     loadAI();
+    loadPerformance();
   }, []);
 
 
@@ -354,6 +392,14 @@ export default function DashboardPage() {
           {aiError && (
             <section className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-700">
               {aiError}
+            </section>
+          )}
+
+
+          {/* Performance error */}
+          {performanceError && (
+            <section className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-700">
+              {performanceError}
             </section>
           )}
 
@@ -634,7 +680,7 @@ export default function DashboardPage() {
 
             <SectionHeading
               title="Signal Performance"
-              description="Historical performance will appear here after signal tracking is implemented"
+              description="Recorded performance from completed signal evaluations"
               action="Open performance"
               onAction={() => router.push("/performance")}
             />
@@ -644,7 +690,15 @@ export default function DashboardPage() {
 
               <PerformanceCard
                 label="Signals analysed"
-                value="—"
+                value={
+                  loadingPerformance
+                    ? "..."
+                    : performance
+                      ? String(
+                          performance.evaluated_signals,
+                        )
+                      : "—"
+                }
                 icon={
                   <BarChart3 className="h-5 w-5" />
                 }
@@ -652,8 +706,16 @@ export default function DashboardPage() {
 
 
               <PerformanceCard
-                label="Positive outcomes"
-                value="—"
+                label="Correct outcomes"
+                value={
+                  loadingPerformance
+                    ? "..."
+                    : performance
+                      ? String(
+                          performance.correct,
+                        )
+                      : "—"
+                }
                 icon={
                   <TrendingUp className="h-5 w-5" />
                 }
@@ -661,8 +723,16 @@ export default function DashboardPage() {
 
 
               <PerformanceCard
-                label="Negative outcomes"
-                value="—"
+                label="Incorrect outcomes"
+                value={
+                  loadingPerformance
+                    ? "..."
+                    : performance
+                      ? String(
+                          performance.incorrect,
+                        )
+                      : "—"
+                }
                 icon={
                   <TrendingDown className="h-5 w-5" />
                 }
