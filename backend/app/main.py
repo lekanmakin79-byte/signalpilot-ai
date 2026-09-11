@@ -13,6 +13,26 @@ from .routes.history import router as history_router
 from .routes.strategy_lab import router as strategy_lab_router
 
 
+API_PREFIX = "/api/backend"
+
+
+class VercelPathMiddleware:
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http":
+            path = scope.get("path", "")
+
+            if path == API_PREFIX:
+                scope["path"] = "/"
+
+            elif path.startswith(f"{API_PREFIX}/"):
+                scope["path"] = path[len(API_PREFIX):]
+
+        await self.app(scope, receive, send)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     create_db_and_tables()
@@ -66,3 +86,6 @@ app.include_router(signals_router)
 app.include_router(analysis_router)
 app.include_router(history_router)
 app.include_router(strategy_lab_router)
+
+
+app.add_middleware(VercelPathMiddleware)
