@@ -7,6 +7,7 @@ import {
   Brain,
   ChevronLeft,
   LineChart,
+  LogOut,
   Menu,
   Settings,
   Target,
@@ -16,6 +17,8 @@ import {
 
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
+
+import { createSupabaseBrowserClient } from "@/lib/supabase-browser";
 
 
 const NAVIGATION_ITEMS = [
@@ -74,6 +77,9 @@ export default function SignalPilotNavigation() {
   const [mobileOpen, setMobileOpen] =
     useState(false);
 
+  const [signingOut, setSigningOut] =
+    useState(false);
+
 
   function isActive(href: string) {
     if (href === "/dashboard") {
@@ -95,6 +101,45 @@ export default function SignalPilotNavigation() {
 
   function handleBack() {
     router.back();
+  }
+
+
+  async function handleSignOut() {
+    if (signingOut) {
+      return;
+    }
+
+    setSigningOut(true);
+    setMobileOpen(false);
+
+    try {
+      const supabase =
+        createSupabaseBrowserClient();
+
+      const { error } =
+        await supabase.auth.signOut();
+
+      if (error) {
+        console.error(
+          "Sign out failed:",
+          error,
+        );
+
+        setSigningOut(false);
+        return;
+      }
+
+      router.replace("/");
+      router.refresh();
+
+    } catch (error) {
+      console.error(
+        "Sign out failed:",
+        error,
+      );
+
+      setSigningOut(false);
+    }
   }
 
 
@@ -173,7 +218,7 @@ export default function SignalPilotNavigation() {
         </nav>
 
 
-        {/* Original Dashboard AI Intelligence Panel */}
+        {/* Desktop AI Intelligence Panel */}
         <div className="border-t border-slate-200 p-4">
 
           <div className="rounded-xl bg-slate-50 p-3">
@@ -197,6 +242,21 @@ export default function SignalPilotNavigation() {
             </p>
 
           </div>
+
+
+          {/* Desktop Sign Out */}
+          <button
+            type="button"
+            onClick={handleSignOut}
+            disabled={signingOut}
+            className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <LogOut className="h-4 w-4" />
+
+            {signingOut
+              ? "Signing out..."
+              : "Sign out"}
+          </button>
 
         </div>
 
@@ -370,6 +430,21 @@ export default function SignalPilotNavigation() {
               >
                 <ChevronLeft className="h-4 w-4" />
                 Back
+              </button>
+
+
+              {/* Mobile Sign Out */}
+              <button
+                type="button"
+                onClick={handleSignOut}
+                disabled={signingOut}
+                className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <LogOut className="h-4 w-4" />
+
+                {signingOut
+                  ? "Signing out..."
+                  : "Sign out"}
               </button>
 
             </div>

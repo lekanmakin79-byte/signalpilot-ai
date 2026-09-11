@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import {
   Activity,
@@ -9,10 +11,13 @@ import {
   Clock3,
   Gauge,
   LineChart,
+  Menu,
   ShieldCheck,
   Sparkles,
   TrendingUp,
+  X,
 } from "lucide-react";
+import { useState } from "react";
 
 const markets = [
   {
@@ -76,7 +81,8 @@ const steps = [
   {
     number: "01",
     title: "Collect market data",
-    description: "Price, volume and market conditions are collected for analysis.",
+    description:
+      "Price, volume and market conditions are collected for analysis.",
   },
   {
     number: "02",
@@ -99,12 +105,22 @@ const steps = [
 ];
 
 export default function Home() {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  function closeMobileMenu() {
+    setMobileMenuOpen(false);
+  }
+
   return (
     <main className="min-h-screen bg-white text-slate-900">
       {/* Navigation */}
       <nav className="sticky top-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
-          <Link href="/" className="flex items-center gap-3">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6">
+          <Link
+            href="/"
+            className="flex items-center gap-3"
+            onClick={closeMobileMenu}
+          >
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white shadow-sm">
               <Activity className="h-6 w-6" />
             </div>
@@ -113,12 +129,14 @@ export default function Home() {
               <div className="text-lg font-bold tracking-tight text-slate-900">
                 SignalPilot AI
               </div>
+
               <div className="text-xs text-slate-500">
                 AI Market Intelligence
               </div>
             </div>
           </Link>
 
+          {/* Desktop Navigation */}
           <div className="hidden items-center gap-8 text-sm font-medium text-slate-600 md:flex">
             <Link
               href="#markets"
@@ -142,23 +160,143 @@ export default function Home() {
             </Link>
           </div>
 
-          <div className="flex items-center gap-3">
+          {/* Desktop Actions */}
+          <div className="hidden items-center gap-3 sm:flex">
             <Link
-              href="/login"
-              className="hidden rounded-lg px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 sm:block"
+              href="/auth/login"
+              className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
             >
               Sign in
             </Link>
 
             <Link
-              href="/dashboard"
-              className="rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
+              href="/auth/signup"
+              className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
             >
-              Open Dashboard
+              Create account
             </Link>
           </div>
+
+          {/* Mobile Menu Button */}
+          <button
+            type="button"
+            onClick={() => setMobileMenuOpen(true)}
+            className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:bg-slate-50 sm:hidden"
+            aria-label="Open navigation menu"
+            aria-expanded={mobileMenuOpen}
+          >
+            <Menu className="h-5 w-5" />
+          </button>
         </div>
       </nav>
+
+      {/* Mobile Navigation Drawer */}
+      {mobileMenuOpen && (
+        <div className="fixed inset-0 z-[60] sm:hidden">
+          <button
+            type="button"
+            onClick={closeMobileMenu}
+            className="absolute inset-0 bg-slate-900/40"
+            aria-label="Close navigation menu"
+          />
+
+          <aside className="relative ml-auto flex h-full w-80 max-w-[88vw] flex-col bg-white shadow-2xl">
+            <div className="flex h-20 items-center justify-between border-b border-slate-200 px-5">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white shadow-sm">
+                  <Activity className="h-5 w-5" />
+                </div>
+
+                <div>
+                  <p className="text-sm font-bold text-slate-900">
+                    SignalPilot AI
+                  </p>
+
+                  <p className="text-[11px] text-slate-500">
+                    AI Market Intelligence
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={closeMobileMenu}
+                className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100"
+                aria-label="Close navigation menu"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <nav className="flex-1 px-5 py-6">
+              <div className="space-y-2">
+                <Link
+                  href="#markets"
+                  onClick={closeMobileMenu}
+                  className="flex w-full items-center rounded-xl px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 hover:text-blue-600"
+                >
+                  Markets
+                </Link>
+
+                <Link
+                  href="#features"
+                  onClick={closeMobileMenu}
+                  className="flex w-full items-center rounded-xl px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 hover:text-blue-600"
+                >
+                  Features
+                </Link>
+
+                <Link
+                  href="#how-it-works"
+                  onClick={closeMobileMenu}
+                  className="flex w-full items-center rounded-xl px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 hover:text-blue-600"
+                >
+                  How it works
+                </Link>
+              </div>
+
+              <div className="my-6 border-t border-slate-200" />
+
+              <div className="space-y-3">
+                <Link
+                  href="/auth/login"
+                  onClick={closeMobileMenu}
+                  className="flex w-full items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                >
+                  Sign in
+                </Link>
+
+                <Link
+                  href="/auth/signup"
+                  onClick={closeMobileMenu}
+                  className="flex w-full items-center justify-center rounded-xl border border-blue-600 bg-white px-4 py-3 text-sm font-semibold text-blue-600 transition hover:bg-blue-50"
+                >
+                  Create account
+                </Link>
+              </div>
+            </nav>
+
+            <div className="border-t border-slate-200 p-5">
+              <div className="rounded-xl bg-slate-50 p-4">
+                <div className="flex items-center gap-2">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100 text-blue-600">
+                    <Brain className="h-4 w-4" />
+                  </div>
+
+                  <p className="text-xs font-semibold text-slate-700">
+                    AI Market Intelligence
+                  </p>
+                </div>
+
+                <p className="mt-2 text-xs leading-5 text-slate-500">
+                  Analyse markets, understand signals and track historical
+                  performance.
+                </p>
+              </div>
+            </div>
+          </aside>
+        </div>
+      )}
 
       {/* Hero */}
       <section className="relative overflow-hidden bg-slate-50">
@@ -186,10 +324,10 @@ export default function Home() {
 
             <div className="mt-8 flex flex-col gap-4 sm:flex-row">
               <Link
-                href="/dashboard"
+                href="/auth/signup"
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-6 py-3.5 font-semibold text-white shadow-sm transition hover:bg-blue-700"
               >
-                Explore Dashboard
+                Create your account
                 <ChevronRight className="h-5 w-5" />
               </Link>
 
@@ -376,10 +514,10 @@ export default function Home() {
               </p>
 
               <Link
-                href="/dashboard"
+                href="/auth/signup"
                 className="mt-7 inline-flex items-center gap-2 font-semibold text-blue-600 transition hover:text-blue-700"
               >
-                Explore the platform
+                Create your account
                 <ChevronRight className="h-4 w-4" />
               </Link>
             </div>
@@ -427,7 +565,7 @@ export default function Home() {
           </p>
 
           <Link
-            href="/dashboard"
+            href="/auth/signup"
             className="mt-8 inline-flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-3.5 font-semibold text-white shadow-sm transition hover:bg-blue-700"
           >
             Enter SignalPilot
