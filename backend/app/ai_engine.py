@@ -1,0 +1,408 @@
+import json
+
+import httpx
+
+from .config import settings
+
+
+GROQ_CHAT_COMPLETIONS_URL = (
+    "https://api.groq.com/openai/v1/chat/completions"
+)
+
+
+SYSTEM_PROMPT = """
+You are the AI interpretation layer for SignalPilot AI, a market
+intelligence and research application.
+
+Interpret only the quantitative market-analysis data supplied to you.
+
+IMPORTANT RULES:
+
+1. Use ONLY information supplied in the quantitative analysis.
+2. Do not invent prices, indicators, events, news, probabilities, or
+   external information.
+3. The confidence value is a model-confidence score, NOT a calibrated
+   probability of a future outcome.
+4. Never describe a market condition or trade as safe, very safe,
+   risk-free, or likely to succeed.
+5. A lower analytical risk classification does not mean that losses
+   cannot occur.
+6. Do not provide instructions to buy, sell, enter, exit, short, go long,
+   use leverage, or place a trade.
+7. Do not make guarantees.
+8. RSI below 30 can be described as oversold, but it does not guarantee
+   continued downward movement.
+9. Low volatility describes recent price movement and does not mean that
+   a future move will be decisive.
+10. Clearly explain uncertainty and limitations.
+11. Keep the response concise, factual, and educational.
+12. Return valid JSON only.
+13. The JSON must contain all seven requested fields.
+14. Use plain ASCII punctuation only.
+15. Use normal hyphens (-), not typographic dashes or smart quotes.
+"""
+
+
+def _build_prompt(
+    analysis: dict,
+) -> str:
+    return f"""
+Interpret this quantitative market analysis:
+
+{json.dumps(analysis, indent=2)}
+
+Return ONE valid JSON object containing exactly these seven fields:
+
+{{
+  "summary": "Overall quantitative market assessment.",
+  "market_view": "Current analytical direction and supporting conditions.",
+  "evidence": [
+    "Evidence point 1.",
+    "Evidence point 2.",
+    "Evidence point 3."
+  ],
+  "uncertainty": "Limitations, conflicts, or reasons the assessment may change.",
+  "risk_commentary": "Explanation of the supplied analytical risk classification without calling it safe or implying a probability of success.",
+  "confidence_note": "Explain that the confidence score is a model-confidence measure and is not a calibrated probability.",
+  "educational_note": "Explain that market conditions can change and technical analysis does not guarantee future results."
+}}
+
+ALL SEVEN FIELDS ARE REQUIRED.
+
+Field requirements:
+
+summary:
+Give a concise overall interpretation.
+
+market_view:
+Describe the current quantitative direction and its supporting conditions.
+
+evidence:
+Provide 3 to 5 points directly supported by the supplied indicators.
+
+uncertainty:
+Explain limitations or conditions that could change the assessment.
+If there is no major indicator conflict, say so while still acknowledging
+that market conditions can change.
+
+risk_commentary:
+Explain the supplied risk classification.
+Do not call anything safe or risk-free.
+Do not imply that lower risk means a higher chance of profit.
+
+confidence_note:
+State that the confidence value is a model-confidence score and not a
+calibrated probability of a specific future outcome.
+
+educational_note:
+State that market conditions can change and current or historical
+technical analysis does not guarantee future price behavior.
+
+Do not provide trading instructions.
+
+Use plain ASCII punctuation only.
+Use normal hyphens (-).
+Do not use en dashes, em dashes, non-breaking hyphens, smart quotes,
+or other typographic punctuation.
+"""
+
+
+def _sanitize_text(
+    value: str,
+) -> str:
+    """
+    Convert Unicode punctuation and common mojibake into
+    predictable plain ASCII text.
+    """
+
+    replacements = {
+        # Common mojibake sequences.
+        "â€“": "-",
+        "â€”": "-",
+        "â€‘": "-",
+        "â€’": "-",
+        "â€˜": "'",
+        "â€™": "'",
+        "â€œ": '"',
+        "â€\x9d": '"',
+        "â€¦": "...",
+        "Â ": " ",
+        "Â": "",
+
+        # Unicode hyphens and dashes.
+        "\u2010": "-",
+        "\u2011": "-",
+        "\u2012": "-",
+        "\u2013": "-",
+        "\u2014": "-",
+        "\u2015": "-",
+        "\u2212": "-",
+
+        # Unicode quotation marks.
+        "\u2018": "'",
+        "\u2019": "'",
+        "\u201a": "'",
+        "\u201b": "'",
+        "\u201c": '"',
+        "\u201d": '"',
+        "\u201e": '"',
+        "\u201f": '"',
+
+        # Other common Unicode punctuation.
+        "\u2026": "...",
+        "\u00a0": " ",
+    }
+
+    cleaned = value
+
+    for old, new in replacements.items():
+        cleaned = cleaned.replace(old, new)
+
+    # Replace any remaining non-ASCII characters.
+    cleaned = cleaned.encode(
+        "ascii",
+        errors="ignore",
+    ).decode(
+        "ascii",
+    )
+
+    return cleaned
+
+
+def _sanitize_interpretation(
+    interpretation: dict,
+) -> dict:
+    """
+    Sanitize all AI-generated text fields so the frontend
+    receives predictable plain ASCII punctuation.
+    """
+
+    result = {}
+
+    for key, value in interpretation.items():
+        if isinstance(value, str):
+            result[key] = _sanitize_text(value)
+
+        elif isinstance(value, list):
+            result[key] = [
+                _sanitize_text(item)
+                if isinstance(item, str)
+                else item
+                for item in value
+            ]
+
+        else:
+            result[key] = value
+
+    return result
+
+
+def _default_interpretation(
+    analysis: dict,
+) -> dict:
+    direction = analysis.get(
+        "direction",
+        "NEUTRAL",
+    )
+
+    confidence = analysis.get(
+        "confidence",
+        0,
+    )
+
+    risk = analysis.get(
+        "risk",
+        {},
+    )
+
+    risk_level = risk.get(
+        "risk_level",
+        "UNSPECIFIED",
+    )
+
+    return {
+        "summary": (
+            "The quantitative analysis indicates a "
+            f"{direction.lower()} directional bias with "
+            f"a model-confidence score of {confidence}."
+        ),
+        "market_view": (
+            "The current analytical direction is supported by "
+            "the supplied quantitative indicators."
+        ),
+        "evidence": [
+            "The supplied trend indicators support the current analytical direction.",
+            "The supplied momentum indicators contribute to the current directional assessment.",
+            "The supplied volatility measurement describes the current market movement conditions.",
+        ],
+        "uncertainty": (
+            "The assessment is based on the supplied technical indicators "
+            "and may change as new market data becomes available."
+        ),
+        "risk_commentary": (
+            f"The quantitative engine classifies the current analytical "
+            f"risk level as {risk_level}. This classification reflects "
+            "the measured indicators and does not imply that future "
+            "price movement is predictable or that losses cannot occur."
+        ),
+        "confidence_note": (
+            f"The confidence value of {confidence} is a model-confidence "
+            "score and does not represent a calibrated probability of "
+            "a specific future outcome."
+        ),
+        "educational_note": (
+            "Market conditions can change rapidly, and current or "
+            "historical technical analysis does not guarantee future "
+            "price behavior."
+        ),
+    }
+
+
+def _normalise_interpretation(
+    interpretation: dict,
+    analysis: dict,
+) -> dict:
+    fallback = _default_interpretation(
+        analysis,
+    )
+
+    result = {}
+
+    for field in [
+        "summary",
+        "market_view",
+        "uncertainty",
+        "risk_commentary",
+        "confidence_note",
+        "educational_note",
+    ]:
+        value = interpretation.get(field)
+
+        if isinstance(value, str) and value.strip():
+            result[field] = value.strip()
+        else:
+            result[field] = fallback[field]
+
+    evidence = interpretation.get("evidence")
+
+    if isinstance(evidence, list):
+        valid_evidence = [
+            item.strip()
+            for item in evidence
+            if isinstance(item, str)
+            and item.strip()
+        ]
+    else:
+        valid_evidence = []
+
+    if valid_evidence:
+        result["evidence"] = valid_evidence[:5]
+    else:
+        result["evidence"] = fallback["evidence"]
+
+    return _sanitize_interpretation(
+        result,
+    )
+
+
+async def interpret_analysis(
+    analysis: dict,
+) -> dict:
+    """
+    Generate a structured AI interpretation of an existing
+    quantitative market analysis.
+    """
+
+    if not settings.groq_api_key:
+        raise RuntimeError(
+            "GROQ_API_KEY is not configured."
+        )
+
+    payload = {
+        "model": settings.groq_model,
+        "messages": [
+            {
+                "role": "system",
+                "content": SYSTEM_PROMPT,
+            },
+            {
+                "role": "user",
+                "content": _build_prompt(analysis),
+            },
+        ],
+        "temperature": 0.2,
+        "reasoning_effort": "low",
+        "response_format": {
+            "type": "json_object",
+        },
+    }
+
+    headers = {
+        "Authorization": (
+            f"Bearer {settings.groq_api_key}"
+        ),
+        "Content-Type": "application/json",
+    }
+
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        response = await client.post(
+            GROQ_CHAT_COMPLETIONS_URL,
+            headers=headers,
+            json=payload,
+        )
+
+    if response.status_code != 200:
+        raise RuntimeError(
+            "Groq API request failed: "
+            f"{response.status_code} {response.text}"
+        )
+
+    try:
+        response_data = response.json()
+    except ValueError as error:
+        raise RuntimeError(
+            "Groq returned an invalid JSON response."
+        ) from error
+
+    choices = response_data.get("choices")
+
+    if not choices:
+        raise RuntimeError(
+            "Groq response did not contain any choices."
+        )
+
+    message = choices[0].get(
+        "message",
+        {},
+    )
+
+    content = message.get(
+        "content",
+    )
+
+    if not content:
+        raise RuntimeError(
+            "Groq response did not contain message content."
+        )
+
+    try:
+        interpretation = json.loads(
+            content,
+        )
+    except json.JSONDecodeError as error:
+        raise RuntimeError(
+            "Groq returned content that was not valid JSON."
+        ) from error
+
+    if not isinstance(
+        interpretation,
+        dict,
+    ):
+        raise RuntimeError(
+            "Groq response JSON must be an object."
+        )
+
+    return _normalise_interpretation(
+        interpretation,
+        analysis,
+    )
