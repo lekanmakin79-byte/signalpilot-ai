@@ -11,6 +11,7 @@ const protectedRoutes = [
   "/watchlist",
   "/alerts",
   "/settings",
+  "/admin",
 ];
 
 function isProtectedRoute(pathname: string) {
@@ -101,5 +102,6 @@ export const config = {
     "/watchlist/:path*",
     "/alerts/:path*",
     "/settings/:path*",
+    "/admin/:path*",
   ],
 };
