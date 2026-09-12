@@ -228,25 +228,22 @@ export default function StrategyLabPage() {
       setAnalysisLoading(true);
       setAnalysisError(null);
 
-      const responses =
-        await Promise.all(
-          CONFIDENCE_THRESHOLDS.map(
-            async (threshold) => {
-              const response =
-                await runStrategyLabBacktest(
-                  symbol,
-                  timeframe,
-                  limit,
-                  threshold,
-                );
+      const responses: ThresholdResult[] = [];
 
-              return {
-                threshold,
-                summary: response.backtest,
-              };
-            },
-          ),
-        );
+      for (const threshold of CONFIDENCE_THRESHOLDS) {
+        const response =
+          await runStrategyLabBacktest(
+            symbol,
+            timeframe,
+            limit,
+            threshold,
+          );
+
+        responses.push({
+          threshold,
+          summary: response.backtest,
+        });
+      }
 
       setThresholdResults(responses);
 
