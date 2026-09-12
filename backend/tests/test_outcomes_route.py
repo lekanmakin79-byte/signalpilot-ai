@@ -506,3 +506,75 @@ def test_outcome_evaluation_commits_database_changes():
     )
 
     session.commit.assert_called_once()
+
+
+def test_evaluate_pending_signal_with_mismatched_price_is_marked_invalid():
+    record = make_record(
+        record_id=58,
+        symbol="USD/JPY",
+        timeframe="15m",
+        direction="DOWN",
+        price=1.1505,
+    )
+
+    session_context = build_session([record])
+
+    target_time = (
+        datetime.now(timezone.utc)
+        - timedelta(minutes=15)
+    )
+
+    with patch(
+        "app.routes.outcomes.Session",
+        return_value=session_context,
+    ), patch(
+        "app.routes.outcomes.calculate_target_time",
+        return_value=(
+            target_time,
+            15,
+        ),
+    ), patch(
+        "app.routes.outcomes.get_evaluation_price",
+        new_callable=AsyncMock,
+        return_value=(
+            153.64,
+            "2026-09-10T08:15:00+00:00",
+        ),
+    ) as mock_evaluation_price, patch(
+        "app.routes.outcomes.calculate_outcome",
+    ) as mock_calculate_outcome:
+        response = client.post(
+            "/outcomes/evaluate"
+        )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["success"] is True
+    assert data["evaluated"] == 0
+    assert data["pending"] == 0
+    assert data["skipped"] == 1
+
+    result = data["results"][0]
+
+    assert result["id"] == 58
+    assert result["status"] == "SKIPPED"
+    assert result["reason"] == (
+        "Signal price is incompatible with the "
+        "evaluation price and has been marked INVALID."
+    )
+
+    assert record.outcome == "INVALID"
+    assert record.evaluation_price == 153.64
+    assert record.price_change is None
+    assert record.price_change_percent is None
+    assert record.evaluated_at is not None
+
+    mock_evaluation_price.assert_awaited_once_with(
+        symbol="USD/JPY",
+        timeframe="15m",
+        target_time=target_time,
+    )
+
+    mock_calculate_outcome.assert_not_called()

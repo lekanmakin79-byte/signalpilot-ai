@@ -11,6 +11,7 @@ from .routes.markets import router as markets_router
 from .routes.signals import router as signals_router
 from .routes.history import router as history_router
 from .routes.strategy_lab import router as strategy_lab_router
+from .routes.system import router as system_router
 
 
 API_PREFIX = "/api/backend"
@@ -86,6 +87,7 @@ app.include_router(signals_router)
 app.include_router(analysis_router)
 app.include_router(history_router)
 app.include_router(strategy_lab_router)
+app.include_router(system_router)
 
 
 app.add_middleware(VercelPathMiddleware)

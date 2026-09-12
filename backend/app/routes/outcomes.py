@@ -17,6 +17,9 @@ router = APIRouter(
 )
 
 
+MAX_REASONABLE_PRICE_CHANGE_RATIO = 0.50
+
+
 @router.post("/evaluate")
 async def evaluate_pending_signals():
     try:
@@ -102,6 +105,51 @@ async def evaluate_pending_signals():
                         timeframe=record.timeframe,
                         target_time=target_time,
                     )
+
+                    # Protect against historically corrupted or
+                    # mismatched market prices. A signal and its
+                    # evaluation price should not differ by more
+                    # than 50% over the evaluation horizon.
+                    if (
+                        record.price <= 0
+                        or evaluation_price <= 0
+                        or (
+                            abs(
+                                evaluation_price
+                                - record.price
+                            )
+                            / record.price
+                        )
+                        > MAX_REASONABLE_PRICE_CHANGE_RATIO
+                    ):
+                        record.outcome = "INVALID"
+                        record.evaluation_price = (
+                            evaluation_price
+                        )
+                        record.price_change = None
+                        record.price_change_percent = None
+                        record.evaluated_at = (
+                            datetime.now(
+                                timezone.utc
+                            ).isoformat()
+                        )
+
+                        results.append(
+                            {
+                                "id": record.id,
+                                "status": "SKIPPED",
+                                "reason": (
+                                    "Signal price is incompatible "
+                                    "with the evaluation price and "
+                                    "has been marked INVALID."
+                                ),
+                                "evaluation_timestamp": (
+                                    evaluation_timestamp
+                                ),
+                            }
+                        )
+
+                        continue
 
                     outcome = calculate_outcome(
                         direction=record.direction,

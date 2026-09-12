@@ -77,6 +77,8 @@ export default function DashboardPage() {
 
   const [signingOut, setSigningOut] =
     useState(false);
+	const [userEmail, setUserEmail] =
+    useState<string | null>(null);
 
   const hasLoadedRef = useRef(false);
 
@@ -99,10 +101,11 @@ export default function DashboardPage() {
             return;
           }
 
-          if (!isMounted) {
+                    if (!isMounted) {
             return;
           }
 
+          setUserEmail(user.email ?? null);
           setCheckingAuth(false);
         } catch (error) {
           console.error(
@@ -352,6 +355,16 @@ export default function DashboardPage() {
                   ? "Signing out..."
                   : "Sign out"}
               </button>
+
+                            <div className="hidden text-right sm:block">
+                <p className="text-[11px] font-medium text-slate-400">
+                  Signed in as
+                </p>
+
+                <p className="max-w-[220px] truncate text-xs font-semibold text-slate-700">
+                  {userEmail ?? "Authenticated user"}
+                </p>
+              </div>
 
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-900 text-sm font-semibold text-white">
                 SA
