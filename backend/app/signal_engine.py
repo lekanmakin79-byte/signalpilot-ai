@@ -12,6 +12,7 @@ from .indicators import (
     calculate_rsi,
     calculate_volatility,
 )
+from .signal_quality import calculate_quality_score
 
 
 MINIMUM_CANDLES = 50
@@ -116,6 +117,15 @@ def generate_signal(
         momentum_score=momentum_score,
     )
 
+    quality = calculate_quality_score(
+        confidence=confidence_result["confidence"],
+        directional_score=confidence_result["directional_score"],
+        trend_score=trend_score,
+        momentum_score=momentum_score,
+        volatility_score=volatility_score,
+        risk_level=risk["risk_level"],
+    )
+
     return {
         "symbol": symbol,
         "timeframe": timeframe,
@@ -143,6 +153,7 @@ def generate_signal(
             "atr14": atr,
         },
         "risk": risk,
+        "quality": quality,
         "data_points": len(candles),
         "explanation": build_signal_explanation(
             direction=direction,
@@ -180,7 +191,7 @@ def build_signal_explanation(
 
     if direction == "DOWN":
         return (
-            "Current quantitative conditions show a bearish bias, "
+        "Current quantitative conditions show a bearish bias, "
             f"with {trend_description} trend structure "
             f"and {momentum_description} momentum."
         )

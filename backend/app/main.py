@@ -9,6 +9,7 @@ from .routes.outcomes import router as outcomes_router
 from .routes.performance import router as performance_router
 from .routes.markets import router as markets_router
 from .routes.signals import router as signals_router
+from .routes.ranking import router as ranking_router
 from .routes.history import router as history_router
 from .routes.strategy_lab import router as strategy_lab_router
 from .routes.system import router as system_router
@@ -83,6 +84,7 @@ async def health():
 app.include_router(markets_router)
 app.include_router(outcomes_router)
 app.include_router(performance_router)
+app.include_router(ranking_router)
 app.include_router(signals_router)
 app.include_router(analysis_router)
 app.include_router(history_router)

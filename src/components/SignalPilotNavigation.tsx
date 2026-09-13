@@ -5,6 +5,7 @@ import {
   BarChart3,
   Bell,
   Brain,
+  Trophy,
   ChevronLeft,
   LineChart,
   LogOut,
@@ -32,10 +33,15 @@ const NAVIGATION_ITEMS = [
     href: "/markets",
     icon: TrendingUp,
   },
-  {
+    {
     label: "Signals",
     href: "/signals",
     icon: Activity,
+  },
+  {
+    label: "Signal Ranking",
+    href: "/signals/ranking",
+    icon: Trophy,
   },
   {
     label: "AI Analysis",

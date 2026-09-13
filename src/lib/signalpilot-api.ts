@@ -100,6 +100,50 @@ export type SignalResponse = {
   signal: SignalResult;
 };
 
+export type SignalQuality = {
+  quality_score: number;
+  quality_grade:
+    | "EXCEPTIONAL"
+    | "STRONG"
+    | "GOOD"
+    | "MODERATE"
+    | "WEAK";
+  components: {
+    directional_strength: number;
+    confidence: number;
+    indicator_agreement: number;
+    volatility_quality: number;
+    risk_quality: number;
+  };
+};
+
+export type RankedSignal = SignalResult & {
+  quality: SignalQuality;
+  ranking: {
+    score: number;
+    rank: number;
+  };
+};
+
+export type SignalRankingResponse = {
+  success: boolean;
+  interval: string;
+  data_points: number;
+  count: number;
+  signals: RankedSignal[];
+};
+
+export async function getSignalRanking(
+  interval = "5m",
+  limit = 100,
+): Promise<SignalRankingResponse> {
+  return fetchBackend(
+    `/signals/ranking?interval=${encodeURIComponent(
+      interval,
+    )}&limit=${limit}`,
+  );
+}
+
 async function fetchBackend<T>(
   endpoint: string,
 ): Promise<T> {

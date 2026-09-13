@@ -8,6 +8,114 @@ from app.signal_engine import (
     generate_signal,
 )
 
+def test_generate_signal_returns_quality_assessment():
+    candles = make_trending_candles(
+        count=100,
+        direction="UP",
+    )
+
+    result = generate_signal(
+        symbol="EUR/USD",
+        candles=candles,
+        timeframe="5m",
+    )
+
+    quality = result["quality"]
+
+    assert isinstance(quality, dict)
+
+    assert {
+        "quality_score",
+        "quality_grade",
+        "components",
+    }.issubset(
+        quality.keys()
+    )
+
+
+def test_generate_signal_returns_valid_quality_score():
+    candles = make_trending_candles(
+        count=100,
+        direction="UP",
+    )
+
+    result = generate_signal(
+        symbol="EUR/USD",
+        candles=candles,
+        timeframe="5m",
+    )
+
+    quality = result["quality"]
+
+    assert isinstance(
+        quality["quality_score"],
+        (int, float),
+    )
+
+    assert math.isfinite(
+        quality["quality_score"]
+    )
+
+    assert 0 <= quality["quality_score"] <= 100
+
+
+def test_generate_signal_returns_valid_quality_grade():
+    candles = make_trending_candles(
+        count=100,
+        direction="UP",
+    )
+
+    result = generate_signal(
+        symbol="EUR/USD",
+        candles=candles,
+        timeframe="5m",
+    )
+
+    quality = result["quality"]
+
+    assert quality["quality_grade"] in {
+        "EXCEPTIONAL",
+        "STRONG",
+        "GOOD",
+        "MODERATE",
+        "WEAK",
+    }
+
+
+def test_generate_signal_returns_quality_components():
+    candles = make_trending_candles(
+        count=100,
+        direction="UP",
+    )
+
+    result = generate_signal(
+        symbol="EUR/USD",
+        candles=candles,
+        timeframe="5m",
+    )
+
+    components = result["quality"]["components"]
+
+    assert {
+        "directional_strength",
+        "confidence",
+        "indicator_agreement",
+        "volatility_quality",
+        "risk_quality",
+    }.issubset(
+        components.keys()
+    )
+
+    for value in components.values():
+        assert isinstance(
+            value,
+            (int, float),
+        )
+
+        assert math.isfinite(value)
+
+        assert 0 <= value <= 100
+
 
 def make_candles(
     prices: list[float],

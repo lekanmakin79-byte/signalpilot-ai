@@ -143,6 +143,28 @@ def test_signals_route_returns_signal_and_history_id(
     }
 
     assert 0 <= signal["confidence"] <= 100
+    
+    assert "quality" in signal
+
+    quality = signal["quality"]
+
+    assert {
+        "quality_score",
+        "quality_grade",
+        "components",
+    }.issubset(
+        quality.keys()
+    )
+
+    assert 0 <= quality["quality_score"] <= 100
+
+    assert quality["quality_grade"] in {
+        "EXCEPTIONAL",
+        "STRONG",
+        "GOOD",
+        "MODERATE",
+        "WEAK",
+    }
 
 
 def test_signals_route_records_signal_in_history(
