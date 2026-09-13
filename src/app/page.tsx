@@ -55,25 +55,25 @@ const features = [
     icon: Brain,
     title: "AI Market Analysis",
     description:
-      "Combine technical indicators, market structure and AI reasoning to analyse potential market setups.",
+      "Combine technical indicators, market structure, signal quality and comparative market intelligence to understand potential market setups.",
   },
   {
     icon: Gauge,
-    title: "Confidence Scoring",
+    title: "Signal Quality & Ranking",
     description:
-      "Every signal receives a transparent confidence score based on multiple market conditions.",
+      "Evaluate signals using confidence, directional strength, indicator agreement, volatility quality and risk quality, then compare them across supported markets.",
   },
   {
     icon: LineChart,
-    title: "Performance Tracking",
+    title: "Opportunity Scanner",
     description:
-      "Track historical signals and measure how strategies perform across different markets.",
+      "Identify comparatively stronger market opportunities using ranking, signal quality, confidence and analytical risk factors.",
   },
   {
     icon: ShieldCheck,
     title: "Risk Intelligence",
     description:
-      "Identify market conditions where a setup may be weaker, conflicted or too volatile.",
+      "Identify market conditions where a setup may be weaker, conflicted or more exposed to analytical risk.",
   },
 ];
 
@@ -82,7 +82,7 @@ const steps = [
     number: "01",
     title: "Collect market data",
     description:
-      "Price, volume and market conditions are collected for analysis.",
+      "Price and market data are collected for supported markets and analysis timeframes.",
   },
   {
     number: "02",
@@ -92,15 +92,15 @@ const steps = [
   },
   {
     number: "03",
-    title: "Generate AI intelligence",
+    title: "Generate market intelligence",
     description:
-      "The AI evaluates the combined evidence and produces an analysis.",
+      "Signals are scored for quality, ranked comparatively and evaluated for opportunity strength.",
   },
   {
     number: "04",
-    title: "Track the outcome",
+    title: "Explain and track the results",
     description:
-      "Historical results are recorded so performance can be measured.",
+      "AI explains the evidence and uncertainty while historical outcomes can be tracked for performance analysis.",
   },
 ];
 
@@ -171,9 +171,9 @@ export default function Home() {
 
             <Link
               href="/auth/signup"
-              className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              className="rounded-lg border border-blue-600 bg-white px-4 py-2 text-sm font-semibold text-blue-600 transition hover:bg-blue-50"
             >
-              Create account
+              Start Free Beta
             </Link>
           </div>
 
@@ -271,7 +271,7 @@ export default function Home() {
                   onClick={closeMobileMenu}
                   className="flex w-full items-center justify-center rounded-xl border border-blue-600 bg-white px-4 py-3 text-sm font-semibold text-blue-600 transition hover:bg-blue-50"
                 >
-                  Create account
+                  Start Free Beta
                 </Link>
               </div>
             </nav>
@@ -289,8 +289,8 @@ export default function Home() {
                 </div>
 
                 <p className="mt-2 text-xs leading-5 text-slate-500">
-                  Analyse markets, understand signals and track historical
-                  performance.
+                  Analyse markets, understand signals, compare opportunities
+                  and track historical performance.
                 </p>
               </div>
             </div>
@@ -306,7 +306,7 @@ export default function Home() {
           <div className="max-w-4xl">
             <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700">
               <Sparkles className="h-4 w-4" />
-              AI-powered market intelligence
+              FREE BETA · AI-powered market intelligence
             </div>
 
             <h1 className="text-5xl font-bold leading-tight tracking-tight text-slate-950 sm:text-6xl lg:text-7xl">
@@ -317,9 +317,9 @@ export default function Home() {
             </h1>
 
             <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-600">
-              SignalPilot AI analyses market conditions, technical indicators
-              and historical behaviour to identify potential trading setups and
-              explain the reasoning behind them.
+              SignalPilot AI analyses market conditions, technical indicators,
+              signal quality and comparative market strength to help you
+              understand what the data is showing.
             </p>
 
             <div className="mt-8 flex flex-col gap-4 sm:flex-row">
@@ -327,7 +327,7 @@ export default function Home() {
                 href="/auth/signup"
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-6 py-3.5 font-semibold text-white shadow-sm transition hover:bg-blue-700"
               >
-                Create your account
+                Start Free Beta
                 <ChevronRight className="h-5 w-5" />
               </Link>
 
@@ -338,6 +338,11 @@ export default function Home() {
                 View Markets
               </Link>
             </div>
+
+            <p className="mt-4 text-sm text-slate-500">
+              Free during the beta period · Built for market research,
+              education and quantitative analysis.
+            </p>
           </div>
 
           {/* Hero stats */}
@@ -345,10 +350,10 @@ export default function Home() {
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="text-sm text-slate-500">Markets</div>
               <div className="mt-2 text-2xl font-bold text-slate-900">
-                Multi-Market
+                4 Supported
               </div>
               <div className="mt-1 text-xs text-slate-500">
-                Forex, Gold, Crypto & Indices
+                Forex & Gold
               </div>
             </div>
 
@@ -363,12 +368,12 @@ export default function Home() {
             </div>
 
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="text-sm text-slate-500">Tracking</div>
+              <div className="text-sm text-slate-500">Intelligence</div>
               <div className="mt-2 text-2xl font-bold text-slate-900">
-                Historical
+                Comparative
               </div>
               <div className="mt-1 text-xs text-slate-500">
-                Measure signal performance
+                Quality, ranking & opportunity scoring
               </div>
             </div>
           </div>
@@ -387,6 +392,10 @@ export default function Home() {
               <h2 className="mt-2 text-3xl font-bold tracking-tight text-slate-900">
                 Markets we're analysing
               </h2>
+
+              <p className="mt-2 text-sm text-slate-500">
+                Four supported markets across multiple analysis timeframes.
+              </p>
             </div>
 
             <div className="hidden items-center gap-2 text-sm font-medium text-slate-500 sm:flex">
@@ -445,6 +454,12 @@ export default function Home() {
               </div>
             ))}
           </div>
+
+          <p className="mt-4 text-xs text-slate-500">
+            Example market snapshot for demonstration purposes. Values shown
+            here are illustrative and should not be treated as live market
+            prices.
+          </p>
         </div>
       </section>
 
@@ -461,9 +476,9 @@ export default function Home() {
             </h2>
 
             <p className="mt-4 leading-7 text-slate-600">
-              SignalPilot is designed to combine market data, technical
-              analysis, machine learning and AI explanations into one
-              intelligence platform.
+              SignalPilot combines quantitative market analysis, signal
+              quality, comparative ranking, opportunity scoring and AI
+              interpretation into one market intelligence platform.
             </p>
           </div>
 
@@ -508,16 +523,17 @@ export default function Home() {
               </h2>
 
               <p className="mt-5 leading-7 text-slate-600">
-                The system will analyse multiple data points before producing
-                an intelligence report. Every signal can then be measured
-                against its historical performance.
+                SignalPilot analyses multiple data points before producing
+                market intelligence. Signals are evaluated for quality, ranked
+                comparatively and assessed for opportunity strength before AI
+                explains the evidence and uncertainty.
               </p>
 
               <Link
                 href="/auth/signup"
                 className="mt-7 inline-flex items-center gap-2 font-semibold text-blue-600 transition hover:text-blue-700"
               >
-                Create your account
+                Start Free Beta
                 <ChevronRight className="h-4 w-4" />
               </Link>
             </div>
@@ -556,21 +572,30 @@ export default function Home() {
           </div>
 
           <h2 className="mt-6 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
-            Build your market intelligence dashboard.
+            Start exploring SignalPilot AI.
           </h2>
 
           <p className="mx-auto mt-4 max-w-2xl leading-7 text-slate-600">
-            Analyse markets, monitor signals and understand the reasoning
-            behind potential setups.
+            Analyse markets, compare signal strength, understand technical
+            evidence and explore AI-powered market intelligence while
+            SignalPilot is free during beta.
           </p>
 
           <Link
             href="/auth/signup"
             className="mt-8 inline-flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-3.5 font-semibold text-white shadow-sm transition hover:bg-blue-700"
           >
-            Enter SignalPilot
+            Start Free Beta
             <ChevronRight className="h-5 w-5" />
           </Link>
+
+          <p className="mx-auto mt-6 max-w-3xl text-xs leading-5 text-slate-500">
+            SignalPilot AI provides AI-powered market analysis and research
+            tools. It is not financial advice and does not guarantee future
+            market performance, trading outcomes or profits. Scores, rankings,
+            opportunity assessments and AI interpretations are analytical
+            assessments, not guaranteed predictions.
+          </p>
         </div>
       </section>
 
