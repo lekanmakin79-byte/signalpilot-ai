@@ -17,7 +17,7 @@ import {
   TrendingUp,
   X,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 const markets = [
   {
@@ -106,6 +106,29 @@ const steps = [
 
 export default function Home() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  
+  const [showBackToTop, setShowBackToTop] = useState(false);
+
+useEffect(() => {
+  function handleScroll() {
+    setShowBackToTop(window.scrollY > 500);
+  }
+
+  window.addEventListener("scroll", handleScroll);
+
+  handleScroll();
+
+  return () => {
+    window.removeEventListener("scroll", handleScroll);
+  };
+}, []);
+
+function scrollToTop() {
+  window.scrollTo({
+    top: 0,
+    behavior: "smooth",
+  });
+}
 
   function closeMobileMenu() {
     setMobileMenuOpen(false);
@@ -173,7 +196,7 @@ export default function Home() {
               href="/auth/signup"
               className="rounded-lg border border-blue-600 bg-white px-4 py-2 text-sm font-semibold text-blue-600 transition hover:bg-blue-50"
             >
-              Start Free Beta
+              Get Started
             </Link>
           </div>
 
@@ -271,7 +294,7 @@ export default function Home() {
                   onClick={closeMobileMenu}
                   className="flex w-full items-center justify-center rounded-xl border border-blue-600 bg-white px-4 py-3 text-sm font-semibold text-blue-600 transition hover:bg-blue-50"
                 >
-                  Start Free Beta
+                  Get Started
                 </Link>
               </div>
             </nav>
@@ -306,7 +329,7 @@ export default function Home() {
           <div className="max-w-4xl">
             <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700">
               <Sparkles className="h-4 w-4" />
-              FREE BETA · AI-powered market intelligence
+              AI-powered market intelligence
             </div>
 
             <h1 className="text-5xl font-bold leading-tight tracking-tight text-slate-950 sm:text-6xl lg:text-7xl">
@@ -327,7 +350,7 @@ export default function Home() {
                 href="/auth/signup"
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-6 py-3.5 font-semibold text-white shadow-sm transition hover:bg-blue-700"
               >
-                Start Free Beta
+                Get Started
                 <ChevronRight className="h-5 w-5" />
               </Link>
 
@@ -340,8 +363,8 @@ export default function Home() {
             </div>
 
             <p className="mt-4 text-sm text-slate-500">
-              Free during the beta period · Built for market research,
-              education and quantitative analysis.
+              Free to use · Built for market research, education and
+              quantitative analysis.
             </p>
           </div>
 
@@ -533,7 +556,7 @@ export default function Home() {
                 href="/auth/signup"
                 className="mt-7 inline-flex items-center gap-2 font-semibold text-blue-600 transition hover:text-blue-700"
               >
-                Start Free Beta
+                Get Started
                 <ChevronRight className="h-4 w-4" />
               </Link>
             </div>
@@ -577,15 +600,15 @@ export default function Home() {
 
           <p className="mx-auto mt-4 max-w-2xl leading-7 text-slate-600">
             Analyse markets, compare signal strength, understand technical
-            evidence and explore AI-powered market intelligence while
-            SignalPilot is free during beta.
+            evidence and explore AI-powered market intelligence. SignalPilot
+            AI is free to use.
           </p>
 
           <Link
             href="/auth/signup"
             className="mt-8 inline-flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-3.5 font-semibold text-white shadow-sm transition hover:bg-blue-700"
           >
-            Start Free Beta
+            Get Started
             <ChevronRight className="h-5 w-5" />
           </Link>
 
@@ -600,45 +623,57 @@ export default function Home() {
       </section>
 
       {/* Footer */}
-    <footer className="border-t border-slate-200 bg-white">
-    <div className="mx-auto flex max-w-7xl flex-col gap-6 px-6 py-8 text-sm text-slate-500 lg:flex-row lg:items-center lg:justify-between">
-    <div className="flex items-center gap-2 font-medium text-slate-700">
-      <Clock3 className="h-4 w-4" />
-      SignalPilot AI
-    </div>
+      <footer className="border-t border-slate-200 bg-white">
+        <div className="mx-auto flex max-w-7xl flex-col gap-6 px-6 py-8 text-sm text-slate-500 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-center gap-2 font-medium text-slate-700">
+            <Clock3 className="h-4 w-4" />
+            SignalPilot AI
+          </div>
 
-    <p className="text-center">
-      Market intelligence and analysis tools. Not financial advice.
-    </p>
+          <p className="text-center">
+            Market intelligence and analysis tools. Not financial advice.
+          </p>
 
-    <div className="flex flex-col items-center gap-3 sm:flex-row">
-      <a
-        href="https://t.me/SignalPilotAI"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="font-semibold text-blue-600 transition hover:text-blue-700"
-      >
-        Follow on Telegram
-      </a>
+          <div className="flex flex-col items-center gap-3 sm:flex-row">
+            <a
+              href="https://t.me/SignalPilotAI"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-semibold text-blue-600 transition hover:text-blue-700"
+            >
+              Follow on Telegram
+            </a>
 
-      <span className="hidden text-slate-300 sm:inline">|</span>
+            <span className="hidden text-slate-300 sm:inline">|</span>
 
-      <a
-        href="https://t.me/+yXYWzvFsdxtiOGM8"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="font-semibold text-blue-600 transition hover:text-blue-700"
-      >
-        Join Community
-      </a>
+            <a
+              href="https://t.me/+yXYWzvFsdxtiOGM8"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-semibold text-blue-600 transition hover:text-blue-700"
+            >
+              Join Community
+            </a>
 
-      <div className="flex items-center gap-2">
-        <TrendingUp className="h-4 w-4" />
-        Built for informed decisions
-      </div>
-    </div>
-    </div>
-    </footer>
+            <div className="flex items-center gap-2">
+              <TrendingUp className="h-4 w-4" />
+              Built for informed decisions
+            </div>
+          </div>
+        </div>
+      </footer>
+	  
+	  {showBackToTop && (
+  <button
+    type="button"
+    onClick={scrollToTop}
+    className="fixed bottom-6 right-6 z-40 flex h-11 w-11 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg transition hover:bg-blue-700 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+    aria-label="Back to top"
+    title="Back to top"
+  >
+    <ArrowUpRight className="h-5 w-5 -rotate-45" />
+  </button>
+)}
     </main>
   );
 }
