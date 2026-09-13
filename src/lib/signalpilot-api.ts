@@ -372,3 +372,29 @@ export async function runStrategyLabBacktest(
     )}&limit=${limit}&minimum_confidence=${minimumConfidence}`,
   );
 }
+
+export type OpportunitySignal = RankedSignal & {
+  opportunity: {
+    score: number;
+    rank: number;
+  };
+};
+
+export type SignalOpportunitiesResponse = {
+  success: boolean;
+  interval: string;
+  data_points: number;
+  count: number;
+  opportunities: OpportunitySignal[];
+};
+
+export async function getSignalOpportunities(
+  interval = "5m",
+  limit = 100,
+): Promise<SignalOpportunitiesResponse> {
+  return fetchBackend(
+    `/signals/opportunities?interval=${encodeURIComponent(
+      interval,
+    )}&limit=${limit}`,
+  );
+}

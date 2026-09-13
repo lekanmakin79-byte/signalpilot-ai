@@ -44,6 +44,11 @@ const NAVIGATION_ITEMS = [
     icon: Trophy,
   },
   {
+    label: "Top Opportunities",
+    href: "/signals/opportunities",
+    icon: Target,
+  },
+  {
     label: "AI Analysis",
     href: "/ai-analysis",
     icon: Brain,
