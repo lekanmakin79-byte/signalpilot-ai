@@ -600,23 +600,45 @@ export default function Home() {
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-6 py-8 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-2 font-medium text-slate-700">
-            <Clock3 className="h-4 w-4" />
-            SignalPilot AI
-          </div>
+    <footer className="border-t border-slate-200 bg-white">
+    <div className="mx-auto flex max-w-7xl flex-col gap-6 px-6 py-8 text-sm text-slate-500 lg:flex-row lg:items-center lg:justify-between">
+    <div className="flex items-center gap-2 font-medium text-slate-700">
+      <Clock3 className="h-4 w-4" />
+      SignalPilot AI
+    </div>
 
-          <p className="text-center">
-            Market intelligence and analysis tools. Not financial advice.
-          </p>
+    <p className="text-center">
+      Market intelligence and analysis tools. Not financial advice.
+    </p>
 
-          <div className="flex items-center gap-2">
-            <TrendingUp className="h-4 w-4" />
-            Built for informed decisions
-          </div>
-        </div>
-      </footer>
+    <div className="flex flex-col items-center gap-3 sm:flex-row">
+      <a
+        href="https://t.me/SignalPilotAI"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="font-semibold text-blue-600 transition hover:text-blue-700"
+      >
+        Follow on Telegram
+      </a>
+
+      <span className="hidden text-slate-300 sm:inline">|</span>
+
+      <a
+        href="https://t.me/+yXYWzvFsdxtiOGM8"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="font-semibold text-blue-600 transition hover:text-blue-700"
+      >
+        Join Community
+      </a>
+
+      <div className="flex items-center gap-2">
+        <TrendingUp className="h-4 w-4" />
+        Built for informed decisions
+      </div>
+    </div>
+    </div>
+    </footer>
     </main>
   );
 }
