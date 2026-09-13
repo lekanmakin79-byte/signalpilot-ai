@@ -42,6 +42,18 @@ export type MarketAnalysis = {
     factors: string[];
   };
   data_points: number;
+
+  quality: SignalQuality;
+
+  ranking: {
+    score: number;
+    rank: number;
+  };
+
+  opportunity: {
+    score: number;
+    rank: number;
+  };
 };
 
 export type AIInterpretation = {

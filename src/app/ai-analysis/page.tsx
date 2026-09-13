@@ -151,6 +151,100 @@ function getDirectionClasses(
 }
 
 
+function getQualityClasses(
+  grade: string,
+) {
+  if (grade === "EXCEPTIONAL") {
+    return {
+      badge:
+        "bg-emerald-50 text-emerald-700",
+      bar:
+        "bg-emerald-500",
+      value:
+        "text-emerald-700",
+    };
+  }
+
+  if (grade === "STRONG") {
+    return {
+      badge:
+        "bg-blue-50 text-blue-700",
+      bar:
+        "bg-blue-500",
+      value:
+        "text-blue-700",
+    };
+  }
+
+  if (grade === "GOOD") {
+    return {
+      badge:
+        "bg-cyan-50 text-cyan-700",
+      bar:
+        "bg-cyan-500",
+      value:
+        "text-cyan-700",
+    };
+  }
+
+  if (grade === "MODERATE") {
+    return {
+      badge:
+        "bg-amber-50 text-amber-700",
+      bar:
+        "bg-amber-500",
+      value:
+        "text-amber-700",
+    };
+  }
+
+  return {
+    badge:
+      "bg-slate-100 text-slate-600",
+    bar:
+      "bg-slate-500",
+    value:
+      "text-slate-700",
+  };
+}
+
+
+function getRiskClasses(
+  risk: string,
+) {
+  if (risk === "LOWER") {
+    return "bg-emerald-50 text-emerald-700";
+  }
+
+  if (risk === "MODERATE") {
+    return "bg-amber-50 text-amber-700";
+  }
+
+  if (risk === "ELEVATED") {
+    return "bg-red-50 text-red-700";
+  }
+
+  return "bg-slate-100 text-slate-600";
+}
+
+
+function getScoreBarWidth(
+  value: number | null | undefined,
+) {
+  if (!isValidNumber(value)) {
+    return 0;
+  }
+
+  return Math.max(
+    0,
+    Math.min(
+      100,
+      value,
+    ),
+  );
+}
+
+
 export default function AIAnalysisPage() {
   const [symbol, setSymbol] =
     useState("EUR/USD");
@@ -233,6 +327,22 @@ export default function AIAnalysisPage() {
       : 0;
 
 
+  const quality =
+    analysis?.quality;
+
+  const ranking =
+    analysis?.ranking;
+
+  const opportunity =
+    analysis?.opportunity;
+
+
+  const qualityClasses =
+    getQualityClasses(
+      quality?.quality_grade ?? "WEAK",
+    );
+
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
 
@@ -284,7 +394,9 @@ export default function AIAnalysisPage() {
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
                   A dedicated AI interpretation layer that
                   explains the current market conditions,
-                  quantitative evidence, uncertainty and risk.
+                  quantitative evidence, signal quality,
+                  market ranking, opportunity strength,
+                  uncertainty and risk.
                 </p>
 
               </div>
@@ -498,7 +610,278 @@ export default function AIAnalysisPage() {
                       analysis.risk.risk_level
                     }
                     detail="Current analytical risk assessment"
+                    valueClass={
+                      analysis.risk.risk_level === "LOWER"
+                        ? "text-emerald-600"
+                        : analysis.risk.risk_level === "ELEVATED"
+                          ? "text-red-600"
+                          : "text-amber-600"
+                    }
                   />
+
+                </section>
+
+
+                {/* Market Intelligence */}
+                <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+
+                  <div className="border-b border-slate-200 px-5 py-5 sm:px-6">
+
+                    <div className="flex items-start gap-3">
+
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+                        <Target className="h-5 w-5" />
+                      </div>
+
+                      <div>
+
+                        <h2 className="font-bold text-slate-900">
+                          Market Intelligence
+                        </h2>
+
+                        <p className="mt-1 text-xs leading-5 text-slate-500">
+                          Quantitative quality, comparative ranking
+                          and opportunity context for the selected market.
+                        </p>
+
+                      </div>
+
+                    </div>
+
+                  </div>
+
+
+                  <div className="grid gap-6 p-5 sm:p-6 lg:grid-cols-3">
+
+                    {/* Signal Quality */}
+                    <IntelligenceCard
+                      title="Signal Quality"
+                      icon={
+                        <CheckCircle2 className="h-5 w-5" />
+                      }
+                      description="Strength and consistency of the current quantitative evidence."
+                    >
+
+                      <div className="flex items-end justify-between gap-3">
+
+                        <div>
+
+                          <p className={`text-3xl font-bold ${qualityClasses.value}`}>
+                            {isValidNumber(
+                              quality?.quality_score,
+                            )
+                              ? quality.quality_score.toFixed(1)
+                              : "N/A"}
+                          </p>
+
+                          <p className="mt-1 text-xs text-slate-400">
+                            Quality Score
+                          </p>
+
+                        </div>
+
+                        <span
+                          className={`rounded-full px-2.5 py-1 text-xs font-bold ${qualityClasses.badge}`}
+                        >
+                          {quality?.quality_grade ?? "N/A"}
+                        </span>
+
+                      </div>
+
+
+                      <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100">
+
+                        <div
+                          className={`h-full rounded-full ${qualityClasses.bar}`}
+                          style={{
+                            width: `${getScoreBarWidth(
+                              quality?.quality_score,
+                            )}%`,
+                          }}
+                        />
+
+                      </div>
+
+
+                      <div className="mt-5 space-y-3">
+
+                        <IntelligenceMetric
+                          label="Directional strength"
+                          value={quality?.components.directional_strength}
+                        />
+
+                        <IntelligenceMetric
+                          label="Indicator agreement"
+                          value={quality?.components.indicator_agreement}
+                        />
+
+                        <IntelligenceMetric
+                          label="Volatility quality"
+                          value={quality?.components.volatility_quality}
+                        />
+
+                        <IntelligenceMetric
+                          label="Risk quality"
+                          value={quality?.components.risk_quality}
+                        />
+
+                      </div>
+
+                    </IntelligenceCard>
+
+
+                    {/* Market Ranking */}
+                    <IntelligenceCard
+                      title="Market Ranking"
+                      icon={
+                        <BarChart3 className="h-5 w-5" />
+                      }
+                      description="Relative position against the other supported markets."
+                    >
+
+                      <div className="flex items-end justify-between gap-3">
+
+                        <div>
+
+                          <p className="text-3xl font-bold text-blue-700">
+                            {isValidNumber(
+                              ranking?.score,
+                            )
+                              ? ranking.score.toFixed(1)
+                              : "N/A"}
+                          </p>
+
+                          <p className="mt-1 text-xs text-slate-400">
+                            Ranking Score
+                          </p>
+
+                        </div>
+
+                        <div className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
+                          Rank {ranking?.rank ?? "N/A"} / 4
+                        </div>
+
+                      </div>
+
+
+                      <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100">
+
+                        <div
+                          className="h-full rounded-full bg-blue-500"
+                          style={{
+                            width: `${getScoreBarWidth(
+                              ranking?.score,
+                            )}%`,
+                          }}
+                        />
+
+                      </div>
+
+
+                      <div className="mt-5 rounded-xl border border-blue-100 bg-blue-50 p-4">
+
+                        <div className="flex items-start gap-2">
+
+                          <BarChart3 className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
+
+                          <p className="text-xs leading-5 text-blue-800">
+                            This score is comparative. It shows
+                            how the selected market currently ranks
+                            against the four supported markets.
+                          </p>
+
+                        </div>
+
+                      </div>
+
+                    </IntelligenceCard>
+
+
+                    {/* Opportunity */}
+                    <IntelligenceCard
+                      title="Opportunity"
+                      icon={
+                        <Target className="h-5 w-5" />
+                      }
+                      description="Relative strength of the current quantitative opportunity."
+                    >
+
+                      <div className="flex items-end justify-between gap-3">
+
+                        <div>
+
+                          <p className="text-3xl font-bold text-slate-900">
+                            {isValidNumber(
+                              opportunity?.score,
+                            )
+                              ? opportunity.score.toFixed(1)
+                              : "N/A"}
+                          </p>
+
+                          <p className="mt-1 text-xs text-slate-400">
+                            Opportunity Score
+                          </p>
+
+                        </div>
+
+                        <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">
+                          Rank {opportunity?.rank ?? "N/A"} / 4
+                        </div>
+
+                      </div>
+
+
+                      <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100">
+
+                        <div
+                          className="h-full rounded-full bg-slate-700"
+                          style={{
+                            width: `${getScoreBarWidth(
+                              opportunity?.score,
+                            )}%`,
+                          }}
+                        />
+
+                      </div>
+
+
+                      <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
+
+                        <div className="flex items-start gap-2">
+
+                          <Target className="mt-0.5 h-4 w-4 shrink-0 text-slate-600" />
+
+                          <p className="text-xs leading-5 text-slate-600">
+                            Combines ranking, quality, confidence
+                            and analytical risk. It is a comparative
+                            evidence score, not a probability of success.
+                          </p>
+
+                        </div>
+
+                      </div>
+
+                    </IntelligenceCard>
+
+                  </div>
+
+
+                  <div className="border-t border-slate-200 px-5 py-4 sm:px-6">
+
+                    <div className="flex items-start gap-2">
+
+                      <Info className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+
+                      <p className="text-xs leading-5 text-slate-500">
+                        Quality, ranking and opportunity scores describe
+                        current quantitative evidence. They are not
+                        probabilities, predictions or guarantees of future
+                        market performance.
+                      </p>
+
+                    </div>
+
+                  </div>
 
                 </section>
 
@@ -909,8 +1292,10 @@ export default function AIAnalysisPage() {
 
                       <p className="mt-3 text-xs leading-5 text-blue-700">
                         This assessment is generated from the
-                        current quantitative market inputs and
-                        the AI interpretation layer. It is intended
+                        current quantitative market inputs,
+                        signal quality, comparative ranking,
+                        opportunity context and the AI
+                        interpretation layer. It is intended
                         for research and educational purposes.
                       </p>
 
@@ -1032,6 +1417,68 @@ function InfoCard({
       <p className="mt-4 text-sm leading-6 text-slate-600">
         {content}
       </p>
+
+    </div>
+  );
+}
+
+
+function IntelligenceCard({
+  title,
+  icon,
+  description,
+  children,
+}: {
+  title: string;
+  icon: React.ReactNode;
+  description: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-slate-50 p-5">
+
+      <div className="flex items-center gap-2 text-blue-600">
+
+        {icon}
+
+        <h3 className="text-sm font-bold text-slate-800">
+          {title}
+        </h3>
+
+      </div>
+
+      <p className="mt-2 text-xs leading-5 text-slate-500">
+        {description}
+      </p>
+
+      <div className="mt-5">
+        {children}
+      </div>
+
+    </div>
+  );
+}
+
+
+function IntelligenceMetric({
+  label,
+  value,
+}: {
+  label: string;
+  value: number | null | undefined;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+
+      <span className="text-xs text-slate-500">
+        {label}
+      </span>
+
+      <span className="text-xs font-bold text-slate-700">
+        {isValidNumber(value)
+          ? `${value.toFixed(1)}%`
+          : "N/A"}
+      </span>
 
     </div>
   );

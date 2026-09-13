@@ -178,12 +178,49 @@ def test_ai_analysis_route_returns_quantitative_and_ai_results():
     quantitative_analysis = make_quantitative_analysis()
     ai_interpretation = make_ai_interpretation()
 
+    market_intelligence = [
+        {
+            "symbol": "EUR/USD",
+            "quality": {
+                "quality_score": 92.7,
+                "quality_grade": "EXCEPTIONAL",
+                "components": {
+                    "directional_strength": 85.0,
+                    "confidence": 93.2,
+                    "indicator_agreement": 100.0,
+                    "volatility_quality": 100.0,
+                    "risk_quality": 100.0,
+                },
+            },
+            "ranking": {
+                "score": 91.7,
+                "rank": 1,
+            },
+            "opportunity": {
+                "score": 93.1,
+                "rank": 1,
+            },
+        },
+    ]
+
+    expected_analysis = {
+        **quantitative_analysis,
+        "quality": market_intelligence[0]["quality"],
+        "ranking": market_intelligence[0]["ranking"],
+        "opportunity": market_intelligence[0]["opportunity"],
+    }
+
     with patch(
         "app.routes.analysis.get_candles",
         new=AsyncMock(return_value=candles),
     ), patch(
         "app.routes.analysis.analyze_market",
         return_value=quantitative_analysis,
+    ), patch(
+        "app.routes.analysis.build_market_intelligence",
+        new=AsyncMock(
+            return_value=market_intelligence
+        ),
     ), patch(
         "app.routes.analysis.interpret_analysis",
         new=AsyncMock(return_value=ai_interpretation),
@@ -197,11 +234,11 @@ def test_ai_analysis_route_returns_quantitative_and_ai_results():
     body = response.json()
 
     assert body["success"] is True
-    assert body["analysis"] == quantitative_analysis
+    assert body["analysis"] == expected_analysis
     assert body["ai"] == ai_interpretation
 
     mocked_ai.assert_awaited_once_with(
-        quantitative_analysis
+        expected_analysis
     )
 
 
@@ -274,10 +311,42 @@ def test_ai_analysis_maps_runtime_error_to_502():
     )
 
 
-def test_ai_analysis_passes_quantitative_analysis_to_ai_engine():
+def test_ai_analysis_passes_enriched_analysis_to_ai_engine():
     candles = make_candles()
 
     quantitative_analysis = make_quantitative_analysis()
+
+    market_intelligence = [
+        {
+            "symbol": "GBP/USD",
+            "quality": {
+                "quality_score": 85.5,
+                "quality_grade": "STRONG",
+                "components": {
+                    "directional_strength": 80.0,
+                    "confidence": 90.0,
+                    "indicator_agreement": 85.0,
+                    "volatility_quality": 80.0,
+                    "risk_quality": 70.0,
+                },
+            },
+            "ranking": {
+                "score": 82.4,
+                "rank": 2,
+            },
+            "opportunity": {
+                "score": 84.1,
+                "rank": 2,
+            },
+        },
+    ]
+
+    expected_analysis = {
+        **quantitative_analysis,
+        "quality": market_intelligence[0]["quality"],
+        "ranking": market_intelligence[0]["ranking"],
+        "opportunity": market_intelligence[0]["opportunity"],
+    }
 
     with patch(
         "app.routes.analysis.get_candles",
@@ -285,6 +354,11 @@ def test_ai_analysis_passes_quantitative_analysis_to_ai_engine():
     ), patch(
         "app.routes.analysis.analyze_market",
         return_value=quantitative_analysis,
+    ), patch(
+        "app.routes.analysis.build_market_intelligence",
+        new=AsyncMock(
+            return_value=market_intelligence
+        ),
     ), patch(
         "app.routes.analysis.interpret_analysis",
         new=AsyncMock(
@@ -298,5 +372,5 @@ def test_ai_analysis_passes_quantitative_analysis_to_ai_engine():
     assert response.status_code == 200
 
     mocked_ai.assert_awaited_once_with(
-        quantitative_analysis
+        expected_analysis
     )

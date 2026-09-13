@@ -3,6 +3,10 @@ from fastapi import APIRouter, HTTPException
 from ..ai_engine import interpret_analysis
 from ..analysis_engine import analyze_market
 from ..market_data import get_candles
+from ..market_intelligence import (
+    build_market_intelligence,
+    get_market_intelligence,
+)
 
 
 router = APIRouter(
@@ -32,6 +36,32 @@ async def analyze_with_ai(
             interval=interval,
             candles=candles,
         )
+
+        market_intelligence = await build_market_intelligence(
+            interval=interval,
+            limit=limit,
+        )
+
+        selected_market = get_market_intelligence(
+            market_intelligence,
+            symbol,
+        )
+
+        quantitative_analysis = {
+            **quantitative_analysis,
+            "quality": selected_market.get(
+                "quality",
+                {},
+            ),
+            "ranking": selected_market.get(
+                "ranking",
+                {},
+            ),
+            "opportunity": selected_market.get(
+                "opportunity",
+                {},
+            ),
+        }
 
         ai_interpretation = await interpret_analysis(
             quantitative_analysis

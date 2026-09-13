@@ -1,4 +1,4 @@
-import json
+﻿import json
 
 import httpx
 
@@ -30,8 +30,16 @@ IMPORTANT RULES:
 6. Do not provide instructions to buy, sell, enter, exit, short, go long,
    use leverage, or place a trade.
 7. Do not make guarantees.
-8. RSI below 30 can be described as oversold, but it does not guarantee
-   continued downward movement.
+8. RSI interpretation MUST follow these exact rules:
+   - RSI below 30 may be described as oversold.
+   - RSI above 70 may be described as overbought.
+   - RSI from 30 through 70 MUST NOT be described as oversold.
+   - RSI from 30 through 70 MUST NOT be described as overbought.
+   - For example, RSI 36.27 is NOT oversold and is NOT overbought.
+   - An RSI between 30 and 70 may be described as relatively weak,
+     relatively strong, below the midpoint, above the midpoint, or
+     neutral only when supported by the supplied value.
+   - Never infer a reversal or continuation guarantee from RSI.
 9. Low volatility describes recent price movement and does not mean that
    a future move will be decisive.
 10. Clearly explain uncertainty and limitations.
@@ -46,10 +54,49 @@ IMPORTANT RULES:
 def _build_prompt(
     analysis: dict,
 ) -> str:
+    rsi_value = (
+        analysis.get("indicators", {})
+        .get("rsi14")
+    )
+
+    if isinstance(rsi_value, (int, float)):
+        if rsi_value < 30:
+            rsi_instruction = (
+                f"RSI14 is {rsi_value:.2f}. "
+                "This value is below 30 and may be described as "
+                "oversold. Do not imply that a reversal is guaranteed."
+            )
+        elif rsi_value > 70:
+            rsi_instruction = (
+                f"RSI14 is {rsi_value:.2f}. "
+                "This value is above 70 and may be described as "
+                "overbought. Do not imply that a reversal is guaranteed."
+            )
+        else:
+            rsi_instruction = (
+                f"RSI14 is {rsi_value:.2f}. "
+                "This value is between 30 and 70. "
+                "It MUST NOT be described as oversold or overbought. "
+                "It may be described as relatively weak, relatively "
+                "strong, below the midpoint, above the midpoint, or "
+                "neutral only when supported by the value."
+            )
+    else:
+        rsi_instruction = (
+            "RSI14 is unavailable or not numeric. "
+            "Do not make an oversold or overbought claim."
+        )
+
     return f"""
 Interpret this quantitative market analysis:
 
 {json.dumps(analysis, indent=2)}
+
+RSI INTERPRETATION CONSTRAINT:
+
+{rsi_instruction}
+
+The RSI constraint above is mandatory. Do not contradict it.
 
 Return ONE valid JSON object containing exactly these seven fields:
 
@@ -79,6 +126,9 @@ Describe the current quantitative direction and its supporting conditions.
 
 evidence:
 Provide 3 to 5 points directly supported by the supplied indicators.
+Do not describe RSI as oversold unless RSI is below 30.
+Do not describe RSI as overbought unless RSI is above 70.
+If RSI is between 30 and 70, explicitly avoid both labels.
 
 uncertainty:
 Explain limitations or conditions that could change the assessment.
@@ -116,20 +166,18 @@ def _sanitize_text(
     """
 
     replacements = {
-        # Common mojibake sequences.
-        "â€“": "-",
-        "â€”": "-",
-        "â€‘": "-",
-        "â€’": "-",
-        "â€˜": "'",
-        "â€™": "'",
-        "â€œ": '"',
-        "â€\x9d": '"',
-        "â€¦": "...",
-        "Â ": " ",
-        "Â": "",
+        "Ã¢â‚¬â€œ": "-",
+        "Ã¢â‚¬â€": "-",
+        "Ã¢â‚¬â€˜": "-",
+        "Ã¢â‚¬â€™": "-",
+        "Ã¢â‚¬Ëœ": "'",
+        "Ã¢â‚¬â„¢": "'",
+        "Ã¢â‚¬Å“": '"',
+        "Ã¢â‚¬\x9d": '"',
+        "Ã¢â‚¬Â¦": "...",
+        "Ã‚ ": " ",
+        "Ã‚": "",
 
-        # Unicode hyphens and dashes.
         "\u2010": "-",
         "\u2011": "-",
         "\u2012": "-",
@@ -138,7 +186,6 @@ def _sanitize_text(
         "\u2015": "-",
         "\u2212": "-",
 
-        # Unicode quotation marks.
         "\u2018": "'",
         "\u2019": "'",
         "\u201a": "'",
@@ -148,7 +195,6 @@ def _sanitize_text(
         "\u201e": '"',
         "\u201f": '"',
 
-        # Other common Unicode punctuation.
         "\u2026": "...",
         "\u00a0": " ",
     }
@@ -158,7 +204,6 @@ def _sanitize_text(
     for old, new in replacements.items():
         cleaned = cleaned.replace(old, new)
 
-    # Replace any remaining non-ASCII characters.
     cleaned = cleaned.encode(
         "ascii",
         errors="ignore",
