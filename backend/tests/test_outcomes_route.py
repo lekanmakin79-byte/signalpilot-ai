@@ -578,3 +578,65 @@ def test_evaluate_pending_signal_with_mismatched_price_is_marked_invalid():
     )
 
     mock_calculate_outcome.assert_not_called()
+def test_evaluate_pending_signal_handles_twelve_data_rate_limit():
+    record = make_record(
+        record_id=60,
+        symbol="EUR/USD",
+        timeframe="5m",
+    )
+
+    session_context = build_session([record])
+
+    target_time = (
+        datetime.now(timezone.utc)
+        - timedelta(minutes=5)
+    )
+
+    with patch(
+        "app.routes.outcomes.Session",
+        return_value=session_context,
+    ), patch(
+        "app.routes.outcomes.calculate_target_time",
+        return_value=(
+            target_time,
+            5,
+        ),
+    ), patch(
+        "app.routes.outcomes.get_evaluation_price",
+        new_callable=AsyncMock,
+        side_effect=RuntimeError(
+            "Twelve Data rate limit reached. "
+            "The evaluation will remain pending and "
+            "will be retried on a later scheduled run."
+        ),
+    ):
+        response = client.post(
+            "/outcomes/evaluate"
+        )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["success"] is True
+    assert data["evaluated"] == 0
+    assert data["pending"] == 1
+    assert data["skipped"] == 0
+
+    result = data["results"][0]
+
+    assert result["id"] == 60
+    assert result["status"] == "PENDING"
+    assert result["reason"] == (
+        "Twelve Data rate limit reached. "
+        "The evaluation will remain pending and "
+        "will be retried on a later scheduled run."
+    )
+
+    assert record.outcome == "PENDING"
+
+    session = (
+        session_context.__enter__.return_value
+    )
+
+    session.commit.assert_called_once()

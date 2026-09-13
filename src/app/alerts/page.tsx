@@ -22,8 +22,13 @@ import {
 
 import {
   getMarketQuotes,
+  getSignal,
   type MarketQuote,
+  type SignalResult,
 } from "@/lib/signalpilot-api";
+import {
+createSupabaseBrowserClient
+} from "@/lib/supabase-browser";
 
 type AlertCondition =
   | "PRICE_ABOVE"
@@ -61,7 +66,7 @@ function formatPrice(
   price: number | undefined,
 ) {
   if (!isValidNumber(price)) {
-    return "—";
+    return "â€”";
   }
 
   if (symbol === "XAU/USD") {
@@ -78,7 +83,7 @@ function formatPrice(
   return price.toFixed(5);
 }
 
-function loadAlerts(): MarketAlert[] {
+function loadLegacyAlerts(): MarketAlert[] {
   if (typeof window === "undefined") {
     return DEFAULT_ALERTS;
   }
@@ -116,6 +121,20 @@ function loadAlerts(): MarketAlert[] {
     });
   } catch {
     return DEFAULT_ALERTS;
+  }
+}
+
+function clearLegacyAlerts() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    window.localStorage.removeItem(
+      ALERT_STORAGE_KEY,
+    );
+  } catch {
+    // Ignore localStorage cleanup failures.
   }
 }
 
@@ -209,7 +228,12 @@ export default function AlertsPage() {
     [],
   );
 
+  const [latestSignals, setLatestSignals] =
+  useState<Record<string, SignalResult>>({});
+
   const [loading, setLoading] = useState(true);
+  const [loadingAlerts, setLoadingAlerts] =
+  useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
 
@@ -228,20 +252,179 @@ export default function AlertsPage() {
   const [minimumConfidence, setMinimumConfidence] =
     useState("70");
 
-  useEffect(() => {
-    setAlerts(loadAlerts());
-  }, []);
+  async function loadAlertsFromSupabase() {
+  try {
+    setLoadingAlerts(true);
+    setError("");
 
-  useEffect(() => {
-    if (typeof window === "undefined") {
+    const supabase =
+      createSupabaseBrowserClient();
+
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      router.replace("/auth/login");
       return;
     }
 
-    window.localStorage.setItem(
-      ALERT_STORAGE_KEY,
-      JSON.stringify(alerts),
+    const {
+      data,
+      error: alertsError,
+    } = await supabase
+      .from("alerts")
+      .select(
+        "id, symbol, condition, target_price, minimum_confidence, enabled, created_at",
+      )
+      .eq("user_id", user.id)
+      .order("created_at", {
+        ascending: false,
+      });
+
+    if (alertsError) {
+      console.error(
+        "Failed to load Alerts:",
+        alertsError,
+      );
+
+      setError(
+        "Unable to load your saved alerts.",
+      );
+
+      return;
+    }
+
+    const databaseAlerts: MarketAlert[] =
+      (data ?? [])
+        .filter((alert) =>
+          AVAILABLE_MARKETS.includes(
+            alert.symbol,
+          ),
+        )
+        .map((alert) => ({
+          id: String(alert.id),
+          symbol: alert.symbol,
+          condition:
+            alert.condition as AlertCondition,
+          targetPrice:
+            alert.target_price !== null
+              ? Number(alert.target_price)
+              : null,
+          minimumConfidence:
+            alert.minimum_confidence !== null
+              ? Number(
+                  alert.minimum_confidence,
+                )
+              : null,
+          enabled: Boolean(alert.enabled),
+          createdAt: alert.created_at,
+        }));
+
+    if (databaseAlerts.length > 0) {
+      setAlerts(databaseAlerts);
+      clearLegacyAlerts();
+      return;
+    }
+
+    /*
+     * First-time migration:
+     * Preserve alerts previously stored in this browser.
+     */
+    const legacyAlerts =
+      loadLegacyAlerts();
+
+    if (legacyAlerts.length === 0) {
+      setAlerts([]);
+      clearLegacyAlerts();
+      return;
+    }
+
+    const rows = legacyAlerts.map(
+      (alert) => ({
+        user_id: user.id,
+        symbol: alert.symbol,
+        condition: alert.condition,
+        target_price:
+          alert.targetPrice,
+        minimum_confidence:
+          alert.minimumConfidence,
+        enabled: alert.enabled,
+        created_at: alert.createdAt,
+      }),
     );
-  }, [alerts]);
+
+        const {
+      data: migratedData,
+      error: migrationError,
+    } = await supabase
+      .from("alerts")
+      .insert(rows)
+      .select(
+        "id, symbol, condition, target_price, minimum_confidence, enabled, created_at",
+      );
+
+    if (migrationError || !migratedData) {
+      console.error(
+        "Failed to migrate Alerts:",
+        migrationError,
+      );
+
+      setError(
+        "Unable to migrate your existing alerts.",
+      );
+
+      return;
+    }
+
+    const migratedAlerts: MarketAlert[] =
+      migratedData
+        .filter((alert) =>
+          AVAILABLE_MARKETS.includes(
+            alert.symbol,
+          ),
+        )
+        .map((alert) => ({
+          id: String(alert.id),
+          symbol: alert.symbol,
+          condition:
+            alert.condition as AlertCondition,
+          targetPrice:
+            alert.target_price !== null
+              ? Number(alert.target_price)
+              : null,
+          minimumConfidence:
+            alert.minimum_confidence !== null
+              ? Number(
+                  alert.minimum_confidence,
+                )
+              : null,
+          enabled: Boolean(alert.enabled),
+          createdAt: alert.created_at,
+        }));
+
+    setAlerts(migratedAlerts);
+    clearLegacyAlerts();
+  } catch (err) {
+    console.error(
+      "Alerts load failed:",
+      err,
+    );
+
+    setError(
+      err instanceof Error
+        ? err.message
+        : "Unable to load your alerts.",
+    );
+  } finally {
+    setLoadingAlerts(false);
+  }
+}
+
+useEffect(() => {
+  loadAlertsFromSupabase();
+}, []);
 
   async function loadMarkets(
     showRefreshState = false,
@@ -290,6 +473,83 @@ export default function AlertsPage() {
     loadMarkets();
   }, []);
 
+  async function loadLatestSignals() {
+  const signalAlerts = alerts.filter(
+    (alert) =>
+      alert.enabled &&
+      (alert.condition === "SIGNAL_UP" ||
+        alert.condition === "SIGNAL_DOWN"),
+  );
+
+  if (signalAlerts.length === 0) {
+    setLatestSignals({});
+    return;
+  }
+
+  const symbols = Array.from(
+    new Set(
+      signalAlerts.map(
+        (alert) => alert.symbol,
+      ),
+    ),
+  );
+
+  try {
+    const results = await Promise.all(
+      symbols.map(async (symbol) => {
+        try {
+          const response = await getSignal(
+            symbol,
+            "5m",
+            100,
+          );
+
+          if (
+            response.success &&
+            response.signal
+          ) {
+            return [
+              symbol,
+              response.signal,
+            ] as const;
+          }
+
+          return null;
+        } catch (err) {
+          console.error(
+            `Failed to load signal for ${symbol}:`,
+            err,
+          );
+
+          return null;
+        }
+      }),
+    );
+
+    const signalMap: Record<
+      string,
+      SignalResult
+    > = {};
+
+    for (const result of results) {
+      if (result) {
+        signalMap[result[0]] = result[1];
+      }
+    }
+
+    setLatestSignals(signalMap);
+  } catch (err) {
+    console.error(
+      "Failed to load alert signals:",
+      err,
+    );
+  }
+}
+
+useEffect(() => {
+  loadLatestSignals();
+}, [alerts]);
+
   const activeAlerts = useMemo(
     () =>
       alerts.filter(
@@ -299,32 +559,73 @@ export default function AlertsPage() {
   );
 
   const triggeredAlerts = useMemo(() => {
-    return alerts.filter((alert) => {
-      const market = markets.find(
-        (item) => item.symbol === alert.symbol,
-      );
-
-      if (!market || !isValidNumber(market.price)) {
-        return false;
-      }
-
-      if (alert.condition === "PRICE_ABOVE") {
-        return (
-          alert.targetPrice !== null &&
-          market.price >= alert.targetPrice
-        );
-      }
-
-      if (alert.condition === "PRICE_BELOW") {
-        return (
-          alert.targetPrice !== null &&
-          market.price <= alert.targetPrice
-        );
-      }
-
+  return alerts.filter((alert) => {
+    if (!alert.enabled) {
       return false;
-    });
-  }, [alerts, markets]);
+    }
+
+    const market = markets.find(
+      (item) => item.symbol === alert.symbol,
+    );
+
+    if (!market || !isValidNumber(market.price)) {
+      return false;
+    }
+
+    if (alert.condition === "PRICE_ABOVE") {
+      return (
+        alert.targetPrice !== null &&
+        market.price >= alert.targetPrice
+      );
+    }
+
+    if (alert.condition === "PRICE_BELOW") {
+      return (
+        alert.targetPrice !== null &&
+        market.price <= alert.targetPrice
+      );
+    }
+
+    const signal =
+      latestSignals[alert.symbol];
+
+    if (!signal) {
+      return false;
+    }
+
+    if (
+      alert.minimumConfidence === null ||
+      !isValidNumber(signal.confidence)
+    ) {
+      return false;
+    }
+
+    if (
+      signal.confidence <
+      alert.minimumConfidence
+    ) {
+      return false;
+    }
+
+    if (
+      alert.condition === "SIGNAL_UP"
+    ) {
+      return signal.direction === "UP";
+    }
+
+    if (
+      alert.condition === "SIGNAL_DOWN"
+    ) {
+      return signal.direction === "DOWN";
+    }
+
+    return false;
+  });
+}, [
+  alerts,
+  markets,
+  latestSignals,
+]);
 
   function resetAlertForm() {
     setSelectedSymbol("EUR/USD");
@@ -338,7 +639,7 @@ export default function AlertsPage() {
     setShowCreateAlert(true);
   }
 
-  function createAlert() {
+  async function createAlert() {
     const requiresPrice =
       selectedCondition === "PRICE_ABOVE" ||
       selectedCondition === "PRICE_BELOW";
@@ -382,45 +683,221 @@ export default function AlertsPage() {
       }
     }
 
-    const newAlert: MarketAlert = {
-      id: createAlertId(),
-      symbol: selectedSymbol,
-      condition: selectedCondition,
-      targetPrice: parsedPrice,
-      minimumConfidence: parsedConfidence,
-      enabled: true,
-      createdAt: new Date().toISOString(),
-    };
+        try {
+      const supabase =
+        createSupabaseBrowserClient();
 
-    setAlerts((current) => [
-      newAlert,
-      ...current,
-    ]);
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
 
-    setShowCreateAlert(false);
-    setError("");
+      if (userError || !user) {
+        router.replace("/auth/login");
+        return;
+      }
+
+      const {
+        data,
+        error: insertError,
+      } = await supabase
+        .from("alerts")
+        .insert({
+          user_id: user.id,
+          symbol: selectedSymbol,
+          condition: selectedCondition,
+          target_price: parsedPrice,
+          minimum_confidence:
+            parsedConfidence,
+          enabled: true,
+        })
+        .select(
+          "id, symbol, condition, target_price, minimum_confidence, enabled, created_at",
+        )
+        .single();
+
+      if (insertError || !data) {
+        console.error(
+          "Failed to create Alert:",
+          insertError,
+        );
+
+        setError(
+          "Unable to save your alert.",
+        );
+
+        return;
+      }
+
+      const newAlert: MarketAlert = {
+        id: String(data.id),
+        symbol: data.symbol,
+        condition:
+          data.condition as AlertCondition,
+        targetPrice:
+          data.target_price !== null
+            ? Number(data.target_price)
+            : null,
+        minimumConfidence:
+          data.minimum_confidence !== null
+            ? Number(
+                data.minimum_confidence,
+              )
+            : null,
+        enabled: Boolean(data.enabled),
+        createdAt: data.created_at,
+      };
+
+      setAlerts((current) => [
+        newAlert,
+        ...current,
+      ]);
+
+      setShowCreateAlert(false);
+      setError("");
+    } catch (err) {
+      console.error(
+        "Alert creation failed:",
+        err,
+      );
+
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Unable to create alert.",
+      );
+    }
+
+	 }
+
+  async function toggleAlert(id: string) {
+  const alert = alerts.find(
+    (item) => item.id === id,
+  );
+
+  if (!alert) {
+    return;
   }
 
-  function toggleAlert(id: string) {
+  try {
+    setError("");
+
+    const supabase =
+      createSupabaseBrowserClient();
+
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      router.replace("/auth/login");
+      return;
+    }
+
+    const {
+      error: updateError,
+    } = await supabase
+      .from("alerts")
+      .update({
+        enabled: !alert.enabled,
+      })
+      .eq("id", Number(id))
+      .eq("user_id", user.id);
+
+    if (updateError) {
+      console.error(
+        "Failed to update Alert:",
+        updateError,
+      );
+
+      setError(
+        "Unable to update this alert.",
+      );
+
+      return;
+    }
+
     setAlerts((current) =>
-      current.map((alert) =>
-        alert.id === id
+      current.map((item) =>
+        item.id === id
           ? {
-              ...alert,
-              enabled: !alert.enabled,
+              ...item,
+              enabled: !item.enabled,
             }
-          : alert,
+          : item,
       ),
     );
-  }
+  } catch (err) {
+    console.error(
+      "Alert toggle failed:",
+      err,
+    );
 
-  function deleteAlert(id: string) {
+    setError(
+      err instanceof Error
+        ? err.message
+        : "Unable to update this alert.",
+    );
+  }
+}
+
+  async function deleteAlert(id: string) {
+  try {
+    setError("");
+
+    const supabase =
+      createSupabaseBrowserClient();
+
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      router.replace("/auth/login");
+      return;
+    }
+
+    const {
+      error: deleteError,
+    } = await supabase
+      .from("alerts")
+      .delete()
+      .eq("id", Number(id))
+      .eq("user_id", user.id);
+
+    if (deleteError) {
+      console.error(
+        "Failed to delete Alert:",
+        deleteError,
+      );
+
+      setError(
+        "Unable to delete this alert.",
+      );
+
+      return;
+    }
+
     setAlerts((current) =>
       current.filter(
         (alert) => alert.id !== id,
       ),
     );
+  } catch (err) {
+    console.error(
+      "Alert deletion failed:",
+      err,
+    );
+
+    setError(
+      err instanceof Error
+        ? err.message
+        : "Unable to delete this alert.",
+    );
   }
+}
 
   function getMarketPrice(symbol: string) {
     const market = markets.find(
@@ -553,7 +1030,7 @@ export default function AlertsPage() {
             </div>
 
             <div className="mt-1 text-xs text-slate-400">
-              Saved in this browser
+              Saved to your account
             </div>
           </div>
 
@@ -595,7 +1072,7 @@ export default function AlertsPage() {
             </div>
 
             <div className="mt-1 text-xs text-slate-400">
-              Based on latest quotes
+              Based on latest market data and quantitative signals
             </div>
           </div>
         </div>
@@ -663,7 +1140,7 @@ export default function AlertsPage() {
             </div>
           </div>
 
-          {loading ? (
+          {loading || loadingAlerts ? (
             <div className="p-10 text-center">
               <RefreshCw
                 size={24}
@@ -671,7 +1148,7 @@ export default function AlertsPage() {
               />
 
               <p className="text-sm text-slate-500">
-                Loading market data...
+                Loading your alerts...
               </p>
             </div>
           ) : alerts.length === 0 ? (
@@ -962,12 +1439,13 @@ export default function AlertsPage() {
               </h3>
 
               <p className="mt-1 text-xs leading-5 text-slate-500">
-                Alerts are currently stored locally in
-                this browser. Price conditions can be
-                checked against the latest market quotes
-                when you refresh this page. SignalPilot
-                does not execute trades or place orders from
-                these alerts.
+                Your alerts are securely stored in your SignalPilot account.
+				Price conditions are checked against the latest market quotes,
+				while signal conditions are evaluated against SignalPilot's latest
+				quantitative signals and minimum confidence threshold.
+				These conditions are checked when this page loads or refreshes.
+				SignalPilot does not execute trades or place orders from
+				these alerts.
               </p>
             </div>
           </div>

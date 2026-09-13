@@ -10,12 +10,10 @@ from ..outcome_engine import (
     get_evaluation_price,
 )
 
-
 router = APIRouter(
     prefix="/outcomes",
     tags=["Outcome Tracking"],
 )
-
 
 MAX_REASONABLE_PRICE_CHANGE_RATIO = 0.50
 
@@ -27,33 +25,21 @@ async def evaluate_pending_signals():
             statement = (
                 select(SignalHistory)
                 .where(
-                    SignalHistory.outcome
-                    == "PENDING"
+                    SignalHistory.outcome == "PENDING"
                 )
                 .where(
-                    SignalHistory.signal_timestamp
-                    != None
+                    SignalHistory.signal_timestamp != None
                 )
                 .order_by(
                     SignalHistory.id.asc()
                 )
             )
 
-            records = session.exec(
-                statement
-            ).all()
-
+            records = session.exec(statement).all()
             results = []
-
-            now = datetime.now(
-                timezone.utc
-            )
+            now = datetime.now(timezone.utc)
 
             for record in records:
-
-                # Ignore the legacy ID 5 record.
-                # It was generated before SignalPilot
-                # switched market timestamps to UTC.
                 if record.id == 5:
                     results.append(
                         {
@@ -67,12 +53,11 @@ async def evaluate_pending_signals():
                     )
                     continue
 
-                (
-                    target_time,
-                    evaluation_minutes,
-                ) = calculate_target_time(
-                    record.signal_timestamp,
-                    record.timeframe,
+                target_time, evaluation_minutes = (
+                    calculate_target_time(
+                        record.signal_timestamp,
+                        record.timeframe,
+                    )
                 )
 
                 record.evaluation_minutes = (
@@ -85,15 +70,14 @@ async def evaluate_pending_signals():
                             "id": record.id,
                             "status": "PENDING",
                             "reason": (
-                                "Evaluation horizon "
-                                "has not elapsed yet."
+                                "Evaluation horizon has "
+                                "not elapsed yet."
                             ),
                             "target_time": (
                                 target_time.isoformat()
                             ),
                         }
                     )
-
                     continue
 
                 try:
@@ -106,10 +90,6 @@ async def evaluate_pending_signals():
                         target_time=target_time,
                     )
 
-                    # Protect against historically corrupted or
-                    # mismatched market prices. A signal and its
-                    # evaluation price should not differ by more
-                    # than 50% over the evaluation horizon.
                     if (
                         record.price <= 0
                         or evaluation_price <= 0
@@ -139,16 +119,17 @@ async def evaluate_pending_signals():
                                 "id": record.id,
                                 "status": "SKIPPED",
                                 "reason": (
-                                    "Signal price is incompatible "
-                                    "with the evaluation price and "
-                                    "has been marked INVALID."
+                                    "Signal price is "
+                                    "incompatible with "
+                                    "the evaluation price "
+                                    "and has been marked "
+                                    "INVALID."
                                 ),
                                 "evaluation_timestamp": (
                                     evaluation_timestamp
                                 ),
                             }
                         )
-
                         continue
 
                     outcome = calculate_outcome(
@@ -160,21 +141,13 @@ async def evaluate_pending_signals():
                     record.evaluation_price = (
                         outcome["evaluation_price"]
                     )
-
                     record.price_change = (
                         outcome["price_change"]
                     )
-
                     record.price_change_percent = (
-                        outcome[
-                            "price_change_percent"
-                        ]
+                        outcome["price_change_percent"]
                     )
-
-                    record.outcome = (
-                        outcome["outcome"]
-                    )
-
+                    record.outcome = outcome["outcome"]
                     record.evaluated_at = (
                         datetime.now(
                             timezone.utc
@@ -211,20 +184,17 @@ async def evaluate_pending_signals():
             "evaluated": sum(
                 1
                 for item in results
-                if item["status"]
-                == "EVALUATED"
+                if item["status"] == "EVALUATED"
             ),
             "pending": sum(
                 1
                 for item in results
-                if item["status"]
-                == "PENDING"
+                if item["status"] == "PENDING"
             ),
             "skipped": sum(
                 1
                 for item in results
-                if item["status"]
-                == "SKIPPED"
+                if item["status"] == "SKIPPED"
             ),
             "results": results,
         }

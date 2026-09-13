@@ -27,6 +27,8 @@ import {
   type MarketQuote,
 } from "@/lib/signalpilot-api";
 
+import { createSupabaseBrowserClient } from "@/lib/supabase-browser";
+
 const WATCHLIST_STORAGE_KEY = "signalpilot_watchlist";
 
 const AVAILABLE_MARKETS = [
@@ -52,7 +54,7 @@ function formatPrice(
   price: number | undefined,
 ) {
   if (!isValidNumber(price)) {
-    return "—";
+    return "Ã¢â‚¬â€";
   }
 
   if (symbol === "XAU/USD") {
@@ -71,7 +73,7 @@ function formatPrice(
 
 function formatChange(value: number | undefined) {
   if (!isValidNumber(value)) {
-    return "—";
+    return "Ã¢â‚¬â€";
   }
 
   const prefix = value > 0 ? "+" : "";
@@ -79,9 +81,9 @@ function formatChange(value: number | undefined) {
   return `${prefix}${value.toFixed(4)}%`;
 }
 
-function loadWatchlist(): string[] {
+function loadLegacyWatchlist(): string[] | null {
   if (typeof window === "undefined") {
-    return DEFAULT_WATCHLIST;
+    return null;
   }
 
   try {
@@ -90,13 +92,13 @@ function loadWatchlist(): string[] {
     );
 
     if (!saved) {
-      return DEFAULT_WATCHLIST;
+      return null;
     }
 
     const parsed = JSON.parse(saved);
 
     if (!Array.isArray(parsed)) {
-      return DEFAULT_WATCHLIST;
+      return null;
     }
 
     const validMarkets = parsed.filter(
@@ -106,10 +108,24 @@ function loadWatchlist(): string[] {
     );
 
     return validMarkets.length > 0
-      ? validMarkets
-      : DEFAULT_WATCHLIST;
+      ? [...new Set(validMarkets)]
+      : null;
   } catch {
-    return DEFAULT_WATCHLIST;
+    return null;
+  }
+}
+
+function clearLegacyWatchlist() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    window.localStorage.removeItem(
+      WATCHLIST_STORAGE_KEY,
+    );
+  } catch {
+    // Ignore localStorage cleanup failures.
   }
 }
 
@@ -181,22 +197,128 @@ export default function WatchlistPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [showAddMarket, setShowAddMarket] = useState(false);
 
-  useEffect(() => {
-    setWatchlist(loadWatchlist());
-  }, []);
+  const [loadingWatchlist, setLoadingWatchlist] =
+    useState(true);
 
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
+  async function loadWatchlist() {
+    try {
+      setLoadingWatchlist(true);
+      setError("");
+
+      const supabase =
+        createSupabaseBrowserClient();
+
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError || !user) {
+        router.replace("/auth/login");
+        return;
+      }
+
+      const {
+        data,
+        error: watchlistError,
+      } = await supabase
+        .from("watchlists")
+        .select("symbol")
+        .eq("user_id", user.id)
+        .order("created_at", {
+          ascending: true,
+        });
+
+      if (watchlistError) {
+        console.error(
+          "Failed to load Watchlist:",
+          watchlistError,
+        );
+
+        setError(
+          "Unable to load your saved Watchlist.",
+        );
+
+        return;
+      }
+
+      const databaseWatchlist =
+        (data ?? [])
+          .map((item) => item.symbol)
+          .filter((symbol): symbol is string =>
+            AVAILABLE_MARKETS.includes(symbol),
+          );
+
+      if (databaseWatchlist.length > 0) {
+        setWatchlist(
+          [...new Set(databaseWatchlist)],
+        );
+
+        clearLegacyWatchlist();
+        return;
+      }
+
+      /*
+       * First-time migration:
+       * If this browser previously had a local Watchlist,
+       * preserve it by moving it into Supabase.
+       */
+      const legacyWatchlist =
+        loadLegacyWatchlist();
+
+      const initialWatchlist =
+        legacyWatchlist &&
+        legacyWatchlist.length > 0
+          ? legacyWatchlist
+          : DEFAULT_WATCHLIST;
+
+      const rows = initialWatchlist.map(
+        (symbol) => ({
+          user_id: user.id,
+          symbol,
+        }),
+      );
+
+      const {
+        error: insertError,
+      } = await supabase
+        .from("watchlists")
+        .insert(rows);
+
+      if (insertError) {
+        console.error(
+          "Failed to create initial Watchlist:",
+          insertError,
+        );
+
+        setError(
+          "Unable to save your Watchlist.",
+        );
+
+        return;
+      }
+
+      setWatchlist(initialWatchlist);
+      clearLegacyWatchlist();
+    } catch (err) {
+      console.error(
+        "Watchlist load failed:",
+        err,
+      );
+
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Unable to load your Watchlist.",
+      );
+    } finally {
+      setLoadingWatchlist(false);
     }
+  }
 
-    window.localStorage.setItem(
-      WATCHLIST_STORAGE_KEY,
-      JSON.stringify(watchlist),
-    );
-  }, [watchlist]);
-
-  async function loadMarkets(showRefreshState = false) {
+  async function loadMarkets(
+    showRefreshState = false,
+  ) {
     try {
       if (showRefreshState) {
         setRefreshing(true);
@@ -206,9 +328,13 @@ export default function WatchlistPage() {
 
       setError("");
 
-      const result = await getMarketQuotes();
+      const result =
+        await getMarketQuotes();
 
-      if (!result || !Array.isArray(result.markets)) {
+      if (
+        !result ||
+        !Array.isArray(result.markets)
+      ) {
         setMarkets([]);
         setError(
           "Market data returned an unexpected response.",
@@ -237,6 +363,7 @@ export default function WatchlistPage() {
   }
 
   useEffect(() => {
+    loadWatchlist();
     loadMarkets();
   }, []);
 
@@ -266,26 +393,138 @@ export default function WatchlistPage() {
       const notAlreadyAdded =
         !watchlist.includes(symbol);
 
-      return matchesSearch && notAlreadyAdded;
+      return (
+        matchesSearch &&
+        notAlreadyAdded
+      );
     });
 
-  function addToWatchlist(symbol: string) {
-    setWatchlist((current) => {
-      if (current.includes(symbol)) {
-        return current;
+  async function addToWatchlist(
+    symbol: string,
+  ) {
+    if (watchlist.includes(symbol)) {
+      return;
+    }
+
+    try {
+      setError("");
+
+      const supabase =
+        createSupabaseBrowserClient();
+
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError || !user) {
+        router.replace("/auth/login");
+        return;
       }
 
-      return [...current, symbol];
-    });
+      const {
+        error: insertError,
+      } = await supabase
+        .from("watchlists")
+        .insert({
+          user_id: user.id,
+          symbol,
+        });
 
-    setShowAddMarket(false);
-    setSearchTerm("");
+      if (insertError) {
+        console.error(
+          "Failed to add Watchlist market:",
+          insertError,
+        );
+
+        setError(
+          "Unable to add this market to your Watchlist.",
+        );
+
+        return;
+      }
+
+      setWatchlist((current) => {
+        if (current.includes(symbol)) {
+          return current;
+        }
+
+        return [...current, symbol];
+      });
+
+      setShowAddMarket(false);
+      setSearchTerm("");
+    } catch (err) {
+      console.error(
+        "Watchlist add failed:",
+        err,
+      );
+
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Unable to add this market.",
+      );
+    }
   }
 
-  function removeFromWatchlist(symbol: string) {
-    setWatchlist((current) =>
-      current.filter((item) => item !== symbol),
-    );
+  async function removeFromWatchlist(
+    symbol: string,
+  ) {
+    try {
+      setError("");
+
+      const supabase =
+        createSupabaseBrowserClient();
+
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError || !user) {
+        router.replace("/auth/login");
+        return;
+      }
+
+      const {
+        error: deleteError,
+      } = await supabase
+        .from("watchlists")
+        .delete()
+        .eq("user_id", user.id)
+        .eq("symbol", symbol);
+
+      if (deleteError) {
+        console.error(
+          "Failed to remove Watchlist market:",
+          deleteError,
+        );
+
+        setError(
+          "Unable to remove this market from your Watchlist.",
+        );
+
+        return;
+      }
+
+      setWatchlist((current) =>
+        current.filter(
+          (item) => item !== symbol,
+        ),
+      );
+    } catch (err) {
+      console.error(
+        "Watchlist removal failed:",
+        err,
+      );
+
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Unable to remove this market.",
+      );
+    }
   }
 
   function openMarket(_symbol: string) {
@@ -301,7 +540,9 @@ export default function WatchlistPage() {
           <div className="flex items-start gap-3">
             <button
               type="button"
-              onClick={() => router.push("/dashboard")}
+              onClick={() =>
+                router.push("/dashboard")
+              }
               className="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-slate-300 hover:bg-slate-100 hover:text-slate-900"
               aria-label="Back to dashboard"
             >
@@ -333,14 +574,18 @@ export default function WatchlistPage() {
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
-              onClick={() => loadMarkets(true)}
+              onClick={() =>
+                loadMarkets(true)
+              }
               disabled={refreshing}
               className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
             >
               <RefreshCw
                 size={16}
                 className={
-                  refreshing ? "animate-spin" : ""
+                  refreshing
+                    ? "animate-spin"
+                    : ""
                 }
               />
 
@@ -349,7 +594,9 @@ export default function WatchlistPage() {
 
             <button
               type="button"
-              onClick={() => setShowAddMarket(true)}
+              onClick={() =>
+                setShowAddMarket(true)
+              }
               className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-500"
             >
               <Plus size={17} />
@@ -375,11 +622,13 @@ export default function WatchlistPage() {
             </div>
 
             <div className="text-2xl font-bold text-slate-900">
-              {watchlist.length}
+              {loadingWatchlist
+                ? "..."
+                : watchlist.length}
             </div>
 
             <div className="mt-1 text-xs text-slate-400">
-              Saved in this browser
+              Saved to your account
             </div>
           </div>
 
@@ -440,7 +689,7 @@ export default function WatchlistPage() {
 
             <div>
               <div className="font-medium">
-                Unable to load live market data
+                Unable to load Watchlist or live data
               </div>
 
               <div className="mt-1 text-red-600/80">
@@ -469,7 +718,7 @@ export default function WatchlistPage() {
             </div>
           </div>
 
-          {loading ? (
+          {loading || loadingWatchlist ? (
             <div className="p-10 text-center">
               <RefreshCw
                 size={24}
@@ -498,7 +747,9 @@ export default function WatchlistPage() {
 
               <button
                 type="button"
-                onClick={() => setShowAddMarket(true)}
+                onClick={() =>
+                  setShowAddMarket(true)
+                }
                 className="mt-5 inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-500"
               >
                 <Plus size={16} />
@@ -507,101 +758,107 @@ export default function WatchlistPage() {
             </div>
           ) : (
             <div className="divide-y divide-slate-200">
-              {watchlistMarkets.map((market) => (
-                <div
-                  key={market.symbol}
-                  className="flex flex-col gap-4 px-5 py-5 transition hover:bg-slate-50 sm:flex-row sm:items-center sm:justify-between"
-                >
-                  <div className="flex min-w-0 items-center gap-3">
-                    {directionIcon(
-                      market.direction,
-                    )}
+              {watchlistMarkets.map(
+                (market) => (
+                  <div
+                    key={market.symbol}
+                    className="flex flex-col gap-4 px-5 py-5 transition hover:bg-slate-50 sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div className="flex min-w-0 items-center gap-3">
+                      {directionIcon(
+                        market.direction,
+                      )}
 
-                    <div className="min-w-0">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-semibold text-slate-900">
+                            {market.symbol}
+                          </h3>
+
+                          <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-slate-500">
+                            FX
+                          </span>
+                        </div>
+
+                        <div
+                          className={`mt-1 flex items-center gap-1 text-xs font-medium ${directionTextClass(
+                            market.direction,
+                          )}`}
+                        >
+                          {market.direction ===
+                          "UP" ? (
+                            <TrendingUp size={13} />
+                          ) : market.direction ===
+                            "DOWN" ? (
+                            <TrendingDown
+                              size={13}
+                            />
+                          ) : (
+                            <BarChart3 size={13} />
+                          )}
+
+                          {directionLabel(
+                            market.direction,
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-8">
+                      <div className="sm:text-right">
+                        <div className="text-lg font-bold text-slate-900">
+                          {formatPrice(
+                            market.symbol,
+                            market.price,
+                          )}
+                        </div>
+
+                        <div
+                          className={`mt-1 text-xs font-medium ${directionTextClass(
+                            market.direction,
+                          )}`}
+                        >
+                          {formatChange(
+                            market.change_percent,
+                          )}
+                        </div>
+                      </div>
+
                       <div className="flex items-center gap-2">
-                        <h3 className="font-semibold text-slate-900">
-                          {market.symbol}
-                        </h3>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            openMarket(
+                              market.symbol,
+                            )
+                          }
+                          className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
+                        >
+                          Analyze
 
-                        <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-slate-500">
-                          FX
-                        </span>
-                      </div>
+                          <ChevronRight
+                            size={14}
+                          />
+                        </button>
 
-                      <div
-                        className={`mt-1 flex items-center gap-1 text-xs font-medium ${directionTextClass(
-                          market.direction,
-                        )}`}
-                      >
-                        {market.direction ===
-                        "UP" ? (
-                          <TrendingUp size={13} />
-                        ) : market.direction ===
-                          "DOWN" ? (
-                          <TrendingDown size={13} />
-                        ) : (
-                          <BarChart3 size={13} />
-                        )}
-
-                        {directionLabel(
-                          market.direction,
-                        )}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            removeFromWatchlist(
+                              market.symbol,
+                            )
+                          }
+                          className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 text-slate-400 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+                          aria-label={`Remove ${market.symbol} from watchlist`}
+                          title="Remove from watchlist"
+                        >
+                          <Trash2 size={15} />
+                        </button>
                       </div>
                     </div>
                   </div>
-
-                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-8">
-                    <div className="sm:text-right">
-                      <div className="text-lg font-bold text-slate-900">
-                        {formatPrice(
-                          market.symbol,
-                          market.price,
-                        )}
-                      </div>
-
-                      <div
-                        className={`mt-1 text-xs font-medium ${directionTextClass(
-                          market.direction,
-                        )}`}
-                      >
-                        {formatChange(
-                          market.change_percent,
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          openMarket(
-                            market.symbol,
-                          )
-                        }
-                        className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
-                      >
-                        Analyze
-
-                        <ChevronRight size={14} />
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() =>
-                          removeFromWatchlist(
-                            market.symbol,
-                          )
-                        }
-                        className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 text-slate-400 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
-                        aria-label={`Remove ${market.symbol} from watchlist`}
-                        title="Remove from watchlist"
-                      >
-                        <Trash2 size={15} />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
+                ),
+              )}
             </div>
           )}
         </section>
@@ -611,7 +868,9 @@ export default function WatchlistPage() {
 
           <button
             type="button"
-            onClick={() => router.push("/markets")}
+            onClick={() =>
+              router.push("/markets")
+            }
             className="group rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:border-blue-200 hover:bg-blue-50/30"
           >
             <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
@@ -638,7 +897,9 @@ export default function WatchlistPage() {
 
           <button
             type="button"
-            onClick={() => router.push("/signals")}
+            onClick={() =>
+              router.push("/signals")
+            }
             className="group rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:border-emerald-200 hover:bg-emerald-50/30"
           >
             <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
@@ -665,7 +926,9 @@ export default function WatchlistPage() {
 
           <button
             type="button"
-            onClick={() => router.push("/alerts")}
+            onClick={() =>
+              router.push("/alerts")
+            }
             className="group rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:border-amber-200 hover:bg-amber-50/30"
           >
             <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 text-amber-600">
@@ -704,8 +967,9 @@ export default function WatchlistPage() {
               </h3>
 
               <p className="mt-1 text-xs leading-5 text-slate-500">
-                Your selected markets are stored locally
-                in this browser. The prices shown above come
+                Your selected markets are now
+                stored securely in your SignalPilot
+                account. The prices shown above come
                 from SignalPilot&apos;s live market-data
                 endpoint. Watchlist data is for monitoring
                 and research and does not execute trades.
