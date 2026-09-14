@@ -55,13 +55,13 @@ const features = [
     icon: Brain,
     title: "AI Market Analysis",
     description:
-      "Combine technical indicators, market structure, signal quality and comparative market intelligence to understand potential market setups.",
+      "Combine technical indicators, signal quality, comparative market intelligence, fundamental context and data analytics to understand current market conditions.",
   },
   {
     icon: Gauge,
     title: "Signal Quality & Ranking",
     description:
-      "Evaluate signals using confidence, directional strength, indicator agreement, volatility quality and risk quality, then compare them across supported markets.",
+      "Evaluate signals using confidence, directional strength, indicator agreement, volatility quality and analytical risk, then compare them across supported markets.",
   },
   {
     icon: LineChart,
@@ -70,10 +70,22 @@ const features = [
       "Identify comparatively stronger market opportunities using ranking, signal quality, confidence and analytical risk factors.",
   },
   {
-    icon: ShieldCheck,
-    title: "Risk Intelligence",
+    icon: BarChart3,
+    title: "Fundamental Intelligence",
     description:
-      "Identify market conditions where a setup may be weaker, conflicted or more exposed to analytical risk.",
+      "Analyse verified economic and central-bank data to add fundamental context to supported markets without relying on invented or unverified values.",
+  },
+  {
+    icon: Activity,
+    title: "Four-Layer Data Analytics",
+    description:
+      "Understand what happened, why it happened, what recent statistical evidence suggests and what analytical considerations should be monitored.",
+  },
+  {
+    icon: ShieldCheck,
+    title: "Evidence-Based Intelligence",
+    description:
+      "Bring technical, fundamental and data-analytics evidence together with AI-assisted interpretation, uncertainty and risk context.",
   },
 ];
 
@@ -88,7 +100,7 @@ const steps = [
     number: "02",
     title: "Analyse the market",
     description:
-      "Indicators, trend, momentum and volatility are evaluated together.",
+      "Technical indicators, fundamental context, recent market behaviour and data analytics are evaluated together.",
   },
   {
     number: "03",
@@ -106,29 +118,28 @@ const steps = [
 
 export default function Home() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  
   const [showBackToTop, setShowBackToTop] = useState(false);
 
-useEffect(() => {
-  function handleScroll() {
-    setShowBackToTop(window.scrollY > 500);
+  useEffect(() => {
+    function handleScroll() {
+      setShowBackToTop(window.scrollY > 500);
+    }
+
+    window.addEventListener("scroll", handleScroll);
+
+    handleScroll();
+
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+    };
+  }, []);
+
+  function scrollToTop() {
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
   }
-
-  window.addEventListener("scroll", handleScroll);
-
-  handleScroll();
-
-  return () => {
-    window.removeEventListener("scroll", handleScroll);
-  };
-}, []);
-
-function scrollToTop() {
-  window.scrollTo({
-    top: 0,
-    behavior: "smooth",
-  });
-}
 
   function closeMobileMenu() {
     setMobileMenuOpen(false);
@@ -312,8 +323,8 @@ function scrollToTop() {
                 </div>
 
                 <p className="mt-2 text-xs leading-5 text-slate-500">
-                  Analyse markets, understand signals, compare opportunities
-                  and track historical performance.
+                  Analyse markets, understand signals, compare opportunities,
+                  explore fundamental context and track historical performance.
                 </p>
               </div>
             </div>
@@ -340,9 +351,9 @@ function scrollToTop() {
             </h1>
 
             <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-600">
-              SignalPilot AI analyses market conditions, technical indicators,
-              signal quality and comparative market strength to help you
-              understand what the data is showing.
+              SignalPilot AI combines technical analysis, verified fundamental
+              data and four-layer data analytics with AI-assisted interpretation
+              to help you understand what the market data is showing.
             </p>
 
             <div className="mt-8 flex flex-col gap-4 sm:flex-row">
@@ -386,7 +397,7 @@ function scrollToTop() {
                 AI Powered
               </div>
               <div className="mt-1 text-xs text-slate-500">
-                Technical + intelligent analysis
+                Technical + fundamental + data analysis
               </div>
             </div>
 
@@ -499,9 +510,10 @@ function scrollToTop() {
             </h2>
 
             <p className="mt-4 leading-7 text-slate-600">
-              SignalPilot combines quantitative market analysis, signal
-              quality, comparative ranking, opportunity scoring and AI
-              interpretation into one market intelligence platform.
+              SignalPilot combines technical market analysis, verified
+              fundamental data, four-layer data analytics, signal quality,
+              comparative ranking, opportunity scoring and AI interpretation
+              into one market intelligence platform.
             </p>
           </div>
 
@@ -546,10 +558,11 @@ function scrollToTop() {
               </h2>
 
               <p className="mt-5 leading-7 text-slate-600">
-                SignalPilot analyses multiple data points before producing
-                market intelligence. Signals are evaluated for quality, ranked
+                SignalPilot analyses technical indicators, verified economic
+                data and recent market behaviour before producing market
+                intelligence. Signals are evaluated for quality, ranked
                 comparatively and assessed for opportunity strength before AI
-                explains the evidence and uncertainty.
+                explains the evidence, uncertainty and analytical context.
               </p>
 
               <Link
@@ -599,9 +612,9 @@ function scrollToTop() {
           </h2>
 
           <p className="mx-auto mt-4 max-w-2xl leading-7 text-slate-600">
-            Analyse markets, compare signal strength, understand technical
-            evidence and explore AI-powered market intelligence. SignalPilot
-            AI is free to use.
+            Analyse markets, compare signal strength, explore fundamental
+            context, understand four-layer data analytics and discover
+            AI-powered market intelligence. SignalPilot AI is free to use.
           </p>
 
           <Link
@@ -662,18 +675,19 @@ function scrollToTop() {
           </div>
         </div>
       </footer>
-	  
-	  {showBackToTop && (
-  <button
-    type="button"
-    onClick={scrollToTop}
-    className="fixed bottom-6 right-6 z-40 flex h-11 w-11 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg transition hover:bg-blue-700 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-    aria-label="Back to top"
-    title="Back to top"
-  >
-    <ArrowUpRight className="h-5 w-5 -rotate-45" />
-  </button>
-)}
+
+      {/* Back to Top */}
+      {showBackToTop && (
+        <button
+          type="button"
+          onClick={scrollToTop}
+          className="fixed bottom-6 right-6 z-40 flex h-11 w-11 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg transition hover:bg-blue-700 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+          aria-label="Back to top"
+          title="Back to top"
+        >
+          <ArrowUpRight className="h-5 w-5 -rotate-45" />
+        </button>
+      )}
     </main>
   );
 }

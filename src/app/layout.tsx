@@ -19,18 +19,23 @@ export const metadata: Metadata = {
     template: "%s | SignalPilot AI",
   },
   description:
-    "SignalPilot AI provides AI-powered market intelligence, technical analysis, trading signals, confidence scoring and historical performance tracking for Forex, Gold, Crypto and Indices.",
+    "SignalPilot AI combines technical analysis, verified fundamental data, four-layer data analytics, signal quality, market ranking and AI-assisted interpretation for Forex and Gold market research.",
   keywords: [
     "SignalPilot AI",
     "AI market intelligence",
+    "AI market analysis",
     "AI trading analysis",
-    "trading signals",
     "Forex analysis",
     "Gold analysis",
-    "Crypto analysis",
-    "market analysis",
     "technical analysis",
-    "trading intelligence",
+    "fundamental analysis",
+    "data analytics",
+    "market intelligence",
+    "signal quality",
+    "market ranking",
+    "opportunity analysis",
+    "trading research",
+    "quantitative market analysis",
   ],
   alternates: {
     canonical: "https://signalpilot-ai.vercel.app",
@@ -49,7 +54,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "SignalPilot AI | AI Market Intelligence",
     description:
-      "AI-powered market intelligence, technical analysis, trading signals and performance tracking across Forex, Gold, Crypto and Indices.",
+      "Technical analysis, verified fundamental data, four-layer data analytics, signal quality, market ranking and AI-assisted market intelligence for Forex and Gold research.",
     url: "https://signalpilot-ai.vercel.app",
     siteName: "SignalPilot AI",
     type: "website",
@@ -58,7 +63,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "SignalPilot AI | AI Market Intelligence",
     description:
-      "AI-powered market intelligence, technical analysis, trading signals and performance tracking.",
+      "AI-powered market intelligence combining technical analysis, fundamental data and four-layer data analytics for market research.",
   },
 };
 
