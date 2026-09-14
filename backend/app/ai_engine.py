@@ -14,40 +14,67 @@ SYSTEM_PROMPT = """
 You are the AI interpretation layer for SignalPilot AI, a market
 intelligence and research application.
 
-Interpret only the quantitative market-analysis data supplied to you.
+Interpret ONLY the market-intelligence evidence supplied to you.
+
+The supplied evidence may contain:
+- technical market analysis
+- signal quality
+- comparative market ranking
+- opportunity scoring
+- fundamental economic analysis
+- fundamental factors
+- policy-rate information
+- inflation information
+- growth information
+- descriptive data analytics
+- diagnostic data analytics
+- predictive analytical baselines
+- prescriptive analytical recommendations
 
 IMPORTANT RULES:
 
-1. Use ONLY information supplied in the quantitative analysis.
-2. Do not invent prices, indicators, events, news, probabilities, or
-   external information.
-3. The confidence value is a model-confidence score, NOT a calibrated
+1. Use ONLY information supplied in the market analysis.
+2. Do not invent prices, indicators, economic values, events, news,
+   probabilities, providers, or external information.
+3. Do not browse for or assume information that is not supplied.
+4. The confidence value is a model-confidence score, NOT a calibrated
    probability of a future outcome.
-4. Never describe a market condition or trade as safe, very safe,
+5. Fundamental scores and biases describe the supplied analytical
+   evidence. They are not guarantees of future market movement.
+6. Predictive analytics are analytical baselines based on supplied
+   historical data. They are not guaranteed forecasts.
+7. Prescriptive analytics are evidence-based analytical observations,
+   not trading instructions.
+8. Never describe a market condition or trade as safe, very safe,
    risk-free, or likely to succeed.
-5. A lower analytical risk classification does not mean that losses
+9. A lower analytical risk classification does not mean that losses
    cannot occur.
-6. Do not provide instructions to buy, sell, enter, exit, short, go long,
-   use leverage, or place a trade.
-7. Do not make guarantees.
-8. RSI interpretation MUST follow these exact rules:
-   - RSI below 30 may be described as oversold.
-   - RSI above 70 may be described as overbought.
-   - RSI from 30 through 70 MUST NOT be described as oversold.
-   - RSI from 30 through 70 MUST NOT be described as overbought.
-   - For example, RSI 36.27 is NOT oversold and is NOT overbought.
-   - An RSI between 30 and 70 may be described as relatively weak,
-     relatively strong, below the midpoint, above the midpoint, or
-     neutral only when supported by the supplied value.
-   - Never infer a reversal or continuation guarantee from RSI.
-9. Low volatility describes recent price movement and does not mean that
-   a future move will be decisive.
-10. Clearly explain uncertainty and limitations.
-11. Keep the response concise, factual, and educational.
-12. Return valid JSON only.
-13. The JSON must contain all seven requested fields.
-14. Use plain ASCII punctuation only.
-15. Use normal hyphens (-), not typographic dashes or smart quotes.
+10. Do not provide instructions to buy, sell, enter, exit, short, go long,
+    use leverage, or place a trade.
+11. Do not make guarantees.
+12. RSI interpretation MUST follow these exact rules:
+    - RSI below 30 may be described as oversold.
+    - RSI above 70 may be described as overbought.
+    - RSI from 30 through 70 MUST NOT be described as oversold.
+    - RSI from 30 through 70 MUST NOT be described as overbought.
+    - An RSI between 30 and 70 may be described as relatively weak,
+      relatively strong, below the midpoint, above the midpoint, or
+      neutral only when supported by the supplied value.
+    - Never infer a reversal or continuation guarantee from RSI.
+13. Low volatility describes recent price movement and does not mean that
+    a future move will be decisive.
+14. Clearly distinguish technical, fundamental, descriptive, diagnostic,
+    predictive, and prescriptive evidence when relevant.
+15. If fundamental analysis is unavailable, do not invent fundamental
+    conclusions. State that the fundamental layer is unavailable.
+16. If one of the four data-analytics layers is unavailable or empty,
+    do not invent a conclusion from it.
+17. Clearly explain uncertainty and limitations.
+18. Keep the response concise, factual, and educational.
+19. Return valid JSON only.
+20. The JSON must contain all seven requested fields.
+21. Use plain ASCII punctuation only.
+22. Use normal hyphens (-), not typographic dashes or smart quotes.
 """
 
 
@@ -88,9 +115,23 @@ def _build_prompt(
         )
 
     return f"""
-Interpret this quantitative market analysis:
+Interpret this supplied SignalPilot AI market-intelligence analysis:
 
 {json.dumps(analysis, indent=2)}
+
+The analysis may contain technical, quality, ranking, opportunity,
+fundamental, and four-layer data-analytics evidence.
+
+The four data-analytics layers are:
+- descriptive: what has happened in the supplied data
+- diagnostic: what patterns or conditions are evident in the supplied data
+- predictive: analytical baseline derived from the supplied historical data
+- prescriptive: evidence-based analytical observation about the supplied
+  conditions
+
+Do not treat predictive analytics as guaranteed forecasts.
+Do not treat prescriptive analytics as trading instructions.
+Do not invent missing fundamental information.
 
 RSI INTERPRETATION CONSTRAINT:
 
@@ -101,7 +142,7 @@ The RSI constraint above is mandatory. Do not contradict it.
 Return ONE valid JSON object containing exactly these seven fields:
 
 {{
-  "summary": "Overall quantitative market assessment.",
+  "summary": "Overall market-intelligence assessment.",
   "market_view": "Current analytical direction and supporting conditions.",
   "evidence": [
     "Evidence point 1.",
@@ -111,7 +152,7 @@ Return ONE valid JSON object containing exactly these seven fields:
   "uncertainty": "Limitations, conflicts, or reasons the assessment may change.",
   "risk_commentary": "Explanation of the supplied analytical risk classification without calling it safe or implying a probability of success.",
   "confidence_note": "Explain that the confidence score is a model-confidence measure and is not a calibrated probability.",
-  "educational_note": "Explain that market conditions can change and technical analysis does not guarantee future results."
+  "educational_note": "Explain that market conditions can change and technical, fundamental, and data analytics do not guarantee future results."
 }}
 
 ALL SEVEN FIELDS ARE REQUIRED.
@@ -119,19 +160,24 @@ ALL SEVEN FIELDS ARE REQUIRED.
 Field requirements:
 
 summary:
-Give a concise overall interpretation.
+Give a concise overall interpretation using only supplied evidence.
 
 market_view:
-Describe the current quantitative direction and its supporting conditions.
+Describe the current quantitative direction and supporting conditions.
+Where useful, distinguish between technical and fundamental evidence.
 
 evidence:
-Provide 3 to 5 points directly supported by the supplied indicators.
+Provide 3 to 5 points directly supported by the supplied analysis.
+Evidence may come from technical, quality, ranking, opportunity,
+fundamental, descriptive, diagnostic, predictive, or prescriptive data.
+
 Do not describe RSI as oversold unless RSI is below 30.
 Do not describe RSI as overbought unless RSI is above 70.
 If RSI is between 30 and 70, explicitly avoid both labels.
 
 uncertainty:
-Explain limitations or conditions that could change the assessment.
+Explain limitations, conflicts, unavailable data, or conditions that
+could change the assessment.
 If there is no major indicator conflict, say so while still acknowledging
 that market conditions can change.
 
@@ -146,7 +192,8 @@ calibrated probability of a specific future outcome.
 
 educational_note:
 State that market conditions can change and current or historical
-technical analysis does not guarantee future price behavior.
+technical analysis, fundamental analysis, and data analytics do not
+guarantee future price behavior.
 
 Do not provide trading instructions.
 
@@ -265,15 +312,41 @@ def _default_interpretation(
         "UNSPECIFIED",
     )
 
+    fundamental = analysis.get(
+        "fundamental",
+        {},
+    )
+
+    fundamental_status = fundamental.get(
+        "status",
+        "unavailable",
+    )
+
+    fundamental_bias = fundamental.get(
+        "bias",
+        "NEUTRAL",
+    )
+
+    if fundamental_status == "available":
+        fundamental_evidence = (
+            f"Supplied fundamental analysis currently has a "
+            f"{fundamental_bias} bias."
+        )
+    else:
+        fundamental_evidence = (
+            "Fundamental analysis is currently unavailable."
+        )
+
     return {
         "summary": (
-            "The quantitative analysis indicates a "
+            "The market-intelligence analysis indicates a "
             f"{direction.lower()} directional bias with "
             f"a model-confidence score of {confidence}."
         ),
         "market_view": (
             "The current analytical direction is supported by "
-            "the supplied quantitative indicators."
+            "the supplied quantitative indicators. "
+            f"{fundamental_evidence}"
         ),
         "evidence": [
             "The supplied trend indicators support the current analytical direction.",
@@ -281,8 +354,9 @@ def _default_interpretation(
             "The supplied volatility measurement describes the current market movement conditions.",
         ],
         "uncertainty": (
-            "The assessment is based on the supplied technical indicators "
-            "and may change as new market data becomes available."
+            "The assessment is based only on the supplied market "
+            "intelligence and may change as new market data becomes "
+            "available."
         ),
         "risk_commentary": (
             f"The quantitative engine classifies the current analytical "
@@ -297,8 +371,8 @@ def _default_interpretation(
         ),
         "educational_note": (
             "Market conditions can change rapidly, and current or "
-            "historical technical analysis does not guarantee future "
-            "price behavior."
+            "historical technical analysis, fundamental analysis, and "
+            "data analytics do not guarantee future price behavior."
         ),
     }
 
@@ -355,7 +429,7 @@ async def interpret_analysis(
 ) -> dict:
     """
     Generate a structured AI interpretation of an existing
-    quantitative market analysis.
+    market-intelligence analysis.
     """
 
     if not settings.groq_api_key:

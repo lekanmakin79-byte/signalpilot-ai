@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+from .data_analytics import build_data_analytics
+from .fundamental_service import (
+    get_market_fundamental_analysis,
+)
 from .market_data import (
     SUPPORTED_MARKETS,
     get_candles,
@@ -18,17 +22,22 @@ async def build_market_intelligence(
 
     Pipeline:
         market data
-        -> signals
+        -> technical signals
         -> quality
         -> ranking
         -> opportunities
+        -> fundamental analysis
+        -> data analytics
 
-    The returned signals contain the existing quantitative
-    analysis plus quality, ranking, and opportunity data.
+    The returned records preserve the existing quantitative
+    analysis while adding fundamental and four-layer data
+    analytics intelligence.
     """
     interval = interval.strip().lower()
 
     signals = []
+    market_analytics = {}
+    market_fundamentals = {}
 
     for symbol in SUPPORTED_MARKETS:
         candles = await get_candles(
@@ -45,6 +54,18 @@ async def build_market_intelligence(
 
         signals.append(result)
 
+        market_analytics[symbol] = build_data_analytics(
+            symbol=symbol,
+            interval=interval,
+            candles=candles,
+        )
+
+        market_fundamentals[symbol] = (
+            await get_market_fundamental_analysis(
+                symbol=symbol,
+            )
+        )
+
     ranked_signals = rank_signals(
         signals
     )
@@ -53,7 +74,48 @@ async def build_market_intelligence(
         ranked_signals
     )
 
-    return opportunities
+    enriched_opportunities = []
+
+    for opportunity in opportunities:
+        symbol = opportunity.get("symbol")
+
+        enriched_opportunity = {
+            **opportunity,
+            "fundamental": market_fundamentals.get(
+                symbol,
+                {
+                    "symbol": symbol,
+                    "available": False,
+                    "status": "unavailable",
+                    "bias": "NEUTRAL",
+                    "score": None,
+                    "factors": [],
+                    "providers": [],
+                    "source_count": 0,
+                    "message": (
+                        "Fundamental analysis is "
+                        "currently unavailable."
+                    ),
+                },
+            ),
+            "data_analytics": market_analytics.get(
+                symbol,
+                {
+                    "symbol": symbol,
+                    "interval": interval,
+                    "descriptive": {},
+                    "diagnostic": {},
+                    "predictive": {},
+                    "prescriptive": {},
+                },
+            ),
+        }
+
+        enriched_opportunities.append(
+            enriched_opportunity
+        )
+
+    return enriched_opportunities
 
 
 def get_market_intelligence(

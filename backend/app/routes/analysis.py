@@ -61,6 +61,14 @@ async def analyze_with_ai(
                 "opportunity",
                 {},
             ),
+            "fundamental": selected_market.get(
+                "fundamental",
+                {},
+            ),
+            "data_analytics": selected_market.get(
+                "data_analytics",
+                {},
+            ),
         }
 
         ai_interpretation = await interpret_analysis(

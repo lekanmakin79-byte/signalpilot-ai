@@ -12,6 +12,7 @@ class Settings(BaseSettings):
 
     groq_api_key: str = ""
     groq_model: str = "openai/gpt-oss-20b"
+    fred_api_key: str = ""
 
     model_config = SettingsConfigDict(
         env_file=".env",

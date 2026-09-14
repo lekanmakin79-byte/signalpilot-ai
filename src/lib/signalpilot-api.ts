@@ -11,6 +11,111 @@ export type MarketQuote = {
   error?: string;
 };
 
+export type FundamentalFactor = {
+  name: string;
+  value: number | null;
+  direction: "positive" | "negative" | "neutral";
+  importance: "low" | "medium" | "high";
+  base_currency?: string;
+  quote_currency?: string;
+  unit?: string;
+  current_value?: number | null;
+  previous_value?: number | null;
+  source_data?: {
+    current?: number | null;
+    previous?: number | null;
+    base_latest?: number | null;
+    quote_latest?: number | null;
+  };
+};
+
+export type FundamentalAnalysis = {
+  symbol: string;
+  available: boolean;
+  score: number | null;
+  bias: "POSITIVE" | "NEGATIVE" | "NEUTRAL";
+  factor_count: number;
+  factors: FundamentalFactor[];
+  method?: string;
+  providers?: string[];
+  source_count?: number;
+  status?: string;
+  updated_at?: string | null;
+  message?: string;
+  disclaimer: string;
+};
+
+export type DescriptiveAnalytics = {
+  type: "descriptive";
+  symbol: string;
+  interval: string;
+  data_points: number;
+  current_price: number;
+  starting_price: number;
+  high: number;
+  low: number;
+  price_change_percent: number;
+  average_return_percent: number;
+  median_return_percent: number;
+  return_volatility_percent: number;
+  positive_periods: number;
+  negative_periods: number;
+  flat_periods: number;
+};
+
+export type DiagnosticAnalytics = {
+  type: "diagnostic";
+  symbol: string;
+  interval: string;
+  available: boolean;
+  reason?: string;
+  dominant_direction?: "UP" | "DOWN" | "FLAT";
+  positive_period_ratio?: number;
+  negative_period_ratio?: number;
+  average_return_first_half_percent?: number;
+  average_return_second_half_percent?: number;
+  return_regime_change_percent?: number;
+  maximum_drawdown_percent?: number;
+};
+
+export type PredictiveAnalytics = {
+  type: "predictive";
+  symbol: string;
+  interval: string;
+  available: boolean;
+  reason?: string;
+  method?: string;
+  lookback_periods?: number;
+  recent_average_return_percent?: number;
+  recent_return_volatility_percent?: number;
+  estimated_next_period_change_percent?: number;
+  directional_assessment?: "UP" | "DOWN" | "NEUTRAL";
+  confidence?: string;
+  disclaimer?: string;
+};
+
+export type PrescriptiveAnalytics = {
+  type: "prescriptive";
+  symbol: string;
+  interval: string;
+  available: boolean;
+  reason?: string;
+  recent_average_return_percent?: number;
+  recent_volatility_percent?: number;
+  environment?: string;
+  analytical_recommendation?: string;
+  disclaimer?: string;
+};
+
+export type DataAnalytics = {
+  symbol: string;
+  interval: string;
+  descriptive: DescriptiveAnalytics;
+  diagnostic: DiagnosticAnalytics;
+  predictive: PredictiveAnalytics;
+  prescriptive: PrescriptiveAnalytics;
+};
+
 export type MarketAnalysis = {
   symbol: string;
   interval: string;
@@ -20,12 +125,14 @@ export type MarketAnalysis = {
   trend: string;
   momentum: string;
   volatility: string;
+
   scores: {
     trend: number;
     momentum: number;
     volatility: number;
     directional: number;
   };
+
   indicators: {
     ema20: number | null;
     ema50: number | null;
@@ -37,10 +144,12 @@ export type MarketAnalysis = {
     };
     atr14: number | null;
   };
+
   risk: {
     risk_level: string;
     factors: string[];
   };
+
   data_points: number;
 
   quality: SignalQuality;
@@ -54,6 +163,10 @@ export type MarketAnalysis = {
     score: number;
     rank: number;
   };
+
+  fundamental: FundamentalAnalysis;
+
+  data_analytics: DataAnalytics;
 };
 
 export type AIInterpretation = {
@@ -82,12 +195,14 @@ export type SignalResult = {
   trend: string;
   momentum: string;
   volatility: string;
+
   scores: {
     trend: number;
     momentum: number;
     volatility: number;
     directional: number;
   };
+
   indicators: {
     ema20: number | null;
     ema50: number | null;
@@ -99,10 +214,12 @@ export type SignalResult = {
     };
     atr14: number | null;
   };
+
   risk: {
     risk_level: string;
     factors: string[];
   };
+
   data_points: number;
   explanation: string;
 };
@@ -120,6 +237,7 @@ export type SignalQuality = {
     | "GOOD"
     | "MODERATE"
     | "WEAK";
+
   components: {
     directional_strength: number;
     confidence: number;
@@ -131,6 +249,7 @@ export type SignalQuality = {
 
 export type RankedSignal = SignalResult & {
   quality: SignalQuality;
+
   ranking: {
     score: number;
     rank: number;
@@ -144,17 +263,6 @@ export type SignalRankingResponse = {
   count: number;
   signals: RankedSignal[];
 };
-
-export async function getSignalRanking(
-  interval = "5m",
-  limit = 100,
-): Promise<SignalRankingResponse> {
-  return fetchBackend(
-    `/signals/ranking?interval=${encodeURIComponent(
-      interval,
-    )}&limit=${limit}`,
-  );
-}
 
 async function fetchBackend<T>(
   endpoint: string,
@@ -173,6 +281,17 @@ async function fetchBackend<T>(
   }
 
   return response.json();
+}
+
+export async function getSignalRanking(
+  interval = "5m",
+  limit = 100,
+): Promise<SignalRankingResponse> {
+  return fetchBackend(
+    `/signals/ranking?interval=${encodeURIComponent(
+      interval,
+    )}&limit=${limit}`,
+  );
 }
 
 export async function getMarketQuotes(): Promise<{
@@ -322,7 +441,9 @@ export type ConfidenceRangePerformanceResponse = {
 };
 
 export async function getPerformanceByConfidenceRange(): Promise<ConfidenceRangePerformanceResponse> {
-  return fetchBackend("/performance/confidence-ranges");
+  return fetchBackend(
+    "/performance/confidence-ranges",
+  );
 }
 
 export type StrategyLabResult = {

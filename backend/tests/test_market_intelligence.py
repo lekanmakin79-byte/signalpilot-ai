@@ -18,6 +18,35 @@ def make_candles(count: int = 100) -> list[dict]:
     ]
 
 
+def make_fundamental(symbol: str) -> dict:
+    return {
+        "symbol": symbol,
+        "available": True,
+        "status": "available",
+        "bias": "POSITIVE",
+        "score": 50.0,
+        "factors": [],
+        "providers": [
+            "Test Provider",
+        ],
+        "source_count": 1,
+    }
+
+
+def make_data_analytics(
+    symbol: str,
+    interval: str,
+) -> dict:
+    return {
+        "symbol": symbol,
+        "interval": interval,
+        "descriptive": {},
+        "diagnostic": {},
+        "predictive": {},
+        "prescriptive": {},
+    }
+
+
 def test_build_market_intelligence_uses_all_supported_markets(
     monkeypatch,
 ):
@@ -59,6 +88,21 @@ def test_build_market_intelligence_uses_all_supported_markets(
             },
         }
 
+    async def fake_fundamental_analysis(
+        symbol,
+    ):
+        return make_fundamental(symbol)
+
+    def fake_data_analytics(
+        symbol,
+        interval,
+        candles,
+    ):
+        return make_data_analytics(
+            symbol=symbol,
+            interval=interval,
+        )
+
     monkeypatch.setattr(
         "app.market_intelligence.get_candles",
         fake_get_candles,
@@ -67,6 +111,16 @@ def test_build_market_intelligence_uses_all_supported_markets(
     monkeypatch.setattr(
         "app.market_intelligence.generate_signal",
         fake_generate_signal,
+    )
+
+    monkeypatch.setattr(
+        "app.market_intelligence.get_market_fundamental_analysis",
+        fake_fundamental_analysis,
+    )
+
+    monkeypatch.setattr(
+        "app.market_intelligence.build_data_analytics",
+        fake_data_analytics,
     )
 
     results = __import__(
@@ -106,6 +160,26 @@ def test_build_market_intelligence_uses_all_supported_markets(
         assert "quality" in item
         assert "ranking" in item
         assert "opportunity" in item
+        assert "fundamental" in item
+        assert "data_analytics" in item
+
+        assert item["fundamental"]["available"] is True
+        assert item["fundamental"]["symbol"] == item["symbol"]
+
+        assert (
+            item["data_analytics"]["symbol"]
+            == item["symbol"]
+        )
+
+        assert (
+            item["data_analytics"]["interval"]
+            == "5m"
+        )
+
+        assert "descriptive" in item["data_analytics"]
+        assert "diagnostic" in item["data_analytics"]
+        assert "predictive" in item["data_analytics"]
+        assert "prescriptive" in item["data_analytics"]
 
 
 def test_get_market_intelligence_returns_selected_market():

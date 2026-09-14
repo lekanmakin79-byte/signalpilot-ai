@@ -73,6 +73,82 @@ def make_ai_interpretation():
     }
 
 
+def make_fundamental_analysis():
+    return {
+        "symbol": "EUR/USD",
+        "available": True,
+        "status": "available",
+        "bias": "POSITIVE",
+        "score": 15.02,
+        "factors": [
+            {
+                "name": "interest_rate_differential",
+                "value": -1.13,
+                "direction": "negative",
+                "importance": "high",
+            },
+            {
+                "name": "inflation_us",
+                "value": 0.396,
+                "direction": "positive",
+                "importance": "medium",
+            },
+        ],
+        "providers": [
+            "European Central Bank",
+            "FRED",
+        ],
+        "source_count": 5,
+    }
+
+
+def make_data_analytics():
+    return {
+        "symbol": "EUR/USD",
+        "interval": "5m",
+        "descriptive": {
+            "current_price": 1.161,
+            "starting_price": 1.160,
+            "price_change_percent": 0.0862,
+            "average_return": 0.0001,
+            "median_return": 0.0001,
+            "volatility": 0.0002,
+            "positive_periods": 60,
+            "negative_periods": 35,
+            "flat_periods": 4,
+        },
+        "diagnostic": {
+            "dominant_direction": "positive",
+            "positive_ratio": 0.6061,
+            "negative_ratio": 0.3535,
+            "first_half_average_return": 0.00008,
+            "second_half_average_return": 0.00012,
+            "regime_change_detected": False,
+            "maximum_drawdown_percent": -0.02,
+        },
+        "predictive": {
+            "recent_return": 0.00012,
+            "recent_volatility": 0.0002,
+            "estimated_next_period_change": 0.00012,
+            "directional_assessment": "positive",
+            "disclaimer": (
+                "This is an analytical baseline, not a guaranteed forecast."
+            ),
+        },
+        "prescriptive": {
+            "variability_environment": "LOW",
+            "analytical_recommendation": (
+                "Continue monitoring the current positive pattern "
+                "while reassessing as new data arrives."
+            ),
+            "disclaimer": (
+                "This is an evidence-based analytical observation, "
+                "not financial advice."
+            ),
+        },
+    }
+
+
 def test_analysis_rejects_invalid_market_data():
     with patch(
         "app.routes.analysis.get_candles",
@@ -178,6 +254,9 @@ def test_ai_analysis_route_returns_quantitative_and_ai_results():
     quantitative_analysis = make_quantitative_analysis()
     ai_interpretation = make_ai_interpretation()
 
+    fundamental = make_fundamental_analysis()
+    data_analytics = make_data_analytics()
+
     market_intelligence = [
         {
             "symbol": "EUR/USD",
@@ -200,6 +279,8 @@ def test_ai_analysis_route_returns_quantitative_and_ai_results():
                 "score": 93.1,
                 "rank": 1,
             },
+            "fundamental": fundamental,
+            "data_analytics": data_analytics,
         },
     ]
 
@@ -208,6 +289,8 @@ def test_ai_analysis_route_returns_quantitative_and_ai_results():
         "quality": market_intelligence[0]["quality"],
         "ranking": market_intelligence[0]["ranking"],
         "opportunity": market_intelligence[0]["opportunity"],
+        "fundamental": fundamental,
+        "data_analytics": data_analytics,
     }
 
     with patch(
@@ -237,6 +320,14 @@ def test_ai_analysis_route_returns_quantitative_and_ai_results():
     assert body["analysis"] == expected_analysis
     assert body["ai"] == ai_interpretation
 
+    assert body["analysis"]["fundamental"]["score"] == 15.02
+    assert body["analysis"]["fundamental"]["bias"] == "POSITIVE"
+
+    assert "descriptive" in body["analysis"]["data_analytics"]
+    assert "diagnostic" in body["analysis"]["data_analytics"]
+    assert "predictive" in body["analysis"]["data_analytics"]
+    assert "prescriptive" in body["analysis"]["data_analytics"]
+
     mocked_ai.assert_awaited_once_with(
         expected_analysis
     )
@@ -245,12 +336,40 @@ def test_ai_analysis_route_returns_quantitative_and_ai_results():
 def test_ai_analysis_route_ordering_is_correct():
     candles = make_candles()
 
+    market_intelligence = [
+        {
+            "symbol": "EUR/USD",
+            "quality": {
+                "quality_score": 90.0,
+                "quality_grade": "STRONG",
+                "components": {},
+            },
+            "ranking": {
+                "score": 85.0,
+                "rank": 1,
+            },
+            "opportunity": {
+                "score": 88.0,
+                "rank": 1,
+            },
+            "fundamental": {},
+            "data_analytics": {},
+        },
+    ]
+
     with patch(
         "app.routes.analysis.get_candles",
-        new=AsyncMock(return_value=candles),
+        new=AsyncMock(
+            return_value=candles
+        ),
     ), patch(
         "app.routes.analysis.analyze_market",
         return_value=make_quantitative_analysis(),
+    ), patch(
+        "app.routes.analysis.build_market_intelligence",
+        new=AsyncMock(
+            return_value=market_intelligence
+        ),
     ), patch(
         "app.routes.analysis.interpret_analysis",
         new=AsyncMock(
@@ -316,6 +435,18 @@ def test_ai_analysis_passes_enriched_analysis_to_ai_engine():
 
     quantitative_analysis = make_quantitative_analysis()
 
+    fundamental = {
+        **make_fundamental_analysis(),
+        "symbol": "GBP/USD",
+        "score": 58.83,
+        "bias": "POSITIVE",
+    }
+
+    data_analytics = {
+        **make_data_analytics(),
+        "symbol": "GBP/USD",
+    }
+
     market_intelligence = [
         {
             "symbol": "GBP/USD",
@@ -338,6 +469,8 @@ def test_ai_analysis_passes_enriched_analysis_to_ai_engine():
                 "score": 84.1,
                 "rank": 2,
             },
+            "fundamental": fundamental,
+            "data_analytics": data_analytics,
         },
     ]
 
@@ -346,6 +479,8 @@ def test_ai_analysis_passes_enriched_analysis_to_ai_engine():
         "quality": market_intelligence[0]["quality"],
         "ranking": market_intelligence[0]["ranking"],
         "opportunity": market_intelligence[0]["opportunity"],
+        "fundamental": fundamental,
+        "data_analytics": data_analytics,
     }
 
     with patch(
@@ -374,3 +509,13 @@ def test_ai_analysis_passes_enriched_analysis_to_ai_engine():
     mocked_ai.assert_awaited_once_with(
         expected_analysis
     )
+
+    body = response.json()
+
+    assert body["analysis"]["fundamental"]["score"] == 58.83
+    assert body["analysis"]["fundamental"]["bias"] == "POSITIVE"
+
+    assert "descriptive" in body["analysis"]["data_analytics"]
+    assert "diagnostic" in body["analysis"]["data_analytics"]
+    assert "predictive" in body["analysis"]["data_analytics"]
+    assert "prescriptive" in body["analysis"]["data_analytics"]
