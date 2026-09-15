@@ -17,15 +17,17 @@ import {
   TrendingUp,
 } from "lucide-react";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import SignalPilotNavigation from "@/components/SignalPilotNavigation";
 import ReturnToTop from "@/components/ReturnToTop";
 
 import {
   getAIAnalysis,
+  getMarketQuotes,
   type AIAnalysisResponse,
   type FundamentalFactor,
+  type MarketQuote,
 } from "@/lib/signalpilot-api";
 
 const MARKET_OPTIONS = [
@@ -291,45 +293,120 @@ export default function AIAnalysisPage() {
 
   const [data, setData] =
     useState<AIAnalysisResponse | null>(null);
+	
+	const [liveQuote, setLiveQuote] =
+      useState<MarketQuote | null>(null);
 
   const [loading, setLoading] =
     useState(true);
 
   const [error, setError] =
     useState<string | null>(null);
+	
+	const analysisRequestRef = 
+	useRef<string | null>(null);
 
   async function loadAnalysis() {
-    try {
-      setLoading(true);
-      setError(null);
+  const requestKey = `${symbol}:${timeframe}`;
 
-      const response =
-        await getAIAnalysis(
-          symbol,
-          timeframe,
-          100,
-        );
-
-      setData(response);
-    } catch (err) {
-      console.error(
-        "SignalPilot AI Analysis error:",
-        err,
-      );
-
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Unable to load AI analysis.",
-      );
-    } finally {
-      setLoading(false);
-    }
+  if (analysisRequestRef.current === requestKey) {
+    return;
   }
+
+  analysisRequestRef.current = requestKey;
+
+  try {
+    setLoading(true);
+    setError(null);
+
+    const response = await getAIAnalysis(
+      symbol,
+      timeframe,
+      100,
+    );
+
+    setData(response);
+  } catch (err) {
+    console.error(
+      "SignalPilot AI Analysis error:",
+      err,
+    );
+
+    setError(
+      err instanceof Error
+        ? err.message
+        : "Unable to load AI analysis.",
+    );
+  } finally {
+    if (
+      analysisRequestRef.current === requestKey
+    ) {
+      analysisRequestRef.current = null;
+    }
+
+    setLoading(false);
+  }
+}
 
   useEffect(() => {
     loadAnalysis();
   }, [symbol, timeframe]);
+  
+  useEffect(() => {
+  let active = true;
+
+  async function loadLiveQuote() {
+    try {
+      const response = await getMarketQuotes();
+
+      if (!active || !response.success) {
+        return;
+      }
+
+      const quote = response.markets.find(
+        (market) => market.symbol === symbol,
+      );
+
+      if (quote) {
+        setLiveQuote(quote);
+      }
+    } catch (err) {
+      console.error(
+        "SignalPilot live market quote error:",
+        err,
+      );
+    }
+  }
+
+  function handleVisibilityChange() {
+    if (!document.hidden) {
+      loadLiveQuote();
+    }
+  }
+
+  loadLiveQuote();
+
+  const intervalId = window.setInterval(
+    loadLiveQuote,
+    30_000,
+  );
+
+  document.addEventListener(
+    "visibilitychange",
+    handleVisibilityChange,
+  );
+
+  return () => {
+    active = false;
+
+    window.clearInterval(intervalId);
+
+    document.removeEventListener(
+      "visibilitychange",
+      handleVisibilityChange,
+    );
+  };
+}, [symbol]);
 
   const analysis =
     data?.analysis;
@@ -556,7 +633,7 @@ export default function AIAnalysisPage() {
                     }
                     label="Current price"
                     value={formatPrice(
-                      analysis.price,
+                      liveQuote?.price ?? analysis.price,
                       analysis.symbol,
                     )}
                     detail={`${analysis.symbol} · ${analysis.interval}`}
@@ -1013,6 +1090,7 @@ export default function AIAnalysisPage() {
                           <AnalyticsMetric
                             label="Current price"
                             value={formatPrice(
+							liveQuote?.price ??
                               analytics.descriptive.current_price,
                               analysis.symbol,
                             )}
