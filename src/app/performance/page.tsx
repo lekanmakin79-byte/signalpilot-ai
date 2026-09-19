@@ -1,25 +1,29 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import {
+  Activity,
   AlertTriangle,
   ArrowDownRight,
   ArrowLeft,
   ArrowUpRight,
   BarChart3,
   CheckCircle2,
+  CircleDollarSign,
   Clock3,
   RefreshCw,
   ShieldCheck,
   Target,
   TrendingDown,
   TrendingUp,
+  Wallet,
   XCircle,
 } from "lucide-react";
 
 import { useRouter } from "next/navigation";
 
 import {
+  getPaperTradingPerformance,
   getPerformanceByConfidenceRange,
   getPerformanceByMarket,
   getPerformanceByTimeframe,
@@ -27,6 +31,9 @@ import {
   runStrategyLabBacktest,
   type ConfidenceRangePerformance,
   type MarketPerformance,
+  type PaperEquityPoint,
+  type PaperRecentTrade,
+  type PaperTradingPerformanceResponse,
   type PerformanceSummary,
   type StrategyLabResponse,
   type StrategyLabResult,
@@ -42,6 +49,9 @@ const DEFAULT_MARKET = "EUR/USD";
 const DEFAULT_TIMEFRAME = "5m";
 const DEFAULT_CANDLES = 100;
 const DEFAULT_CONFIDENCE = 0;
+
+const PAPER_ACCOUNT_STORAGE_KEY =
+  "signalpilot-paper-account-id";
 
 /*
  * A result is not considered strong enough for a "best"
@@ -81,7 +91,34 @@ function formatPrice(value: number) {
 }
 
 
-function formatTimestamp(timestamp: string) {
+function formatCurrency(
+  value: number,
+  decimals = 2,
+) {
+  return new Intl.NumberFormat(
+    "en-US",
+    {
+      style: "currency",
+      currency: "USD",
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals,
+    },
+  ).format(value);
+}
+
+
+function formatPnl(
+  value: number,
+) {
+  return `${value >= 0 ? "+" : ""}${formatCurrency(value)}`;
+}
+
+
+function formatTimestamp(timestamp: string | null) {
+  if (!timestamp) {
+    return "â€”";
+  }
+
   const date = new Date(timestamp);
 
   if (Number.isNaN(date.getTime())) {
@@ -307,27 +344,27 @@ function calculatePerformanceAnalytics(
 
   const confidenceBands = [
     {
-      label: "0–49%",
+      label: "0â€“49%",
       min: 0,
       max: 49,
     },
     {
-      label: "50–59%",
+      label: "50â€“59%",
       min: 50,
       max: 59,
     },
     {
-      label: "60–69%",
+      label: "60â€“69%",
       min: 60,
       max: 69,
     },
     {
-      label: "70–79%",
+      label: "70â€“79%",
       min: 70,
       max: 79,
     },
     {
-      label: "80–89%",
+      label: "80â€“89%",
       min: 80,
       max: 89,
     },
@@ -456,10 +493,27 @@ export default function PerformancePage() {
     ConfidenceRangePerformance[]
   >([]);
 
+
   const [strategyData, setStrategyData] =
     useState<StrategyLabResponse | null>(
       null,
     );
+
+
+  const [
+    paperPerformance,
+    setPaperPerformance,
+  ] =
+    useState<PaperTradingPerformanceResponse | null>(
+      null,
+    );
+
+
+  const [
+    paperAccountId,
+    setPaperAccountId,
+  ] = useState<number | null>(null);
+
 
   const [loading, setLoading] =
     useState(true);
@@ -467,10 +521,16 @@ export default function PerformancePage() {
   const [strategyLoading, setStrategyLoading] =
     useState(true);
 
+  const [paperLoading, setPaperLoading] =
+    useState(true);
+
   const [error, setError] =
     useState<string | null>(null);
 
   const [strategyError, setStrategyError] =
+    useState<string | null>(null);
+
+  const [paperError, setPaperError] =
     useState<string | null>(null);
 
 
@@ -544,10 +604,71 @@ export default function PerformancePage() {
   }
 
 
+  async function loadPaperTradingPerformance() {
+    try {
+      setPaperLoading(true);
+      setPaperError(null);
+
+      if (
+        typeof window ===
+        "undefined"
+      ) {
+        return;
+      }
+
+      const storedAccountId =
+        window.localStorage.getItem(
+          PAPER_ACCOUNT_STORAGE_KEY,
+        );
+
+      const parsedAccountId =
+        storedAccountId
+          ? Number.parseInt(
+              storedAccountId,
+              10,
+            )
+          : NaN;
+
+      if (
+        !Number.isInteger(
+          parsedAccountId,
+        ) ||
+        parsedAccountId <= 0
+      ) {
+        setPaperAccountId(null);
+        setPaperPerformance(null);
+        return;
+      }
+
+      setPaperAccountId(
+        parsedAccountId,
+      );
+
+      const response =
+        await getPaperTradingPerformance(
+          parsedAccountId,
+        );
+
+      setPaperPerformance(response);
+    } catch (err) {
+      setPaperPerformance(null);
+
+      setPaperError(
+        err instanceof Error
+          ? err.message
+          : "Unable to load paper trading performance.",
+      );
+    } finally {
+      setPaperLoading(false);
+    }
+  }
+
+
   async function loadAllPerformance() {
     await Promise.all([
       loadPerformance(),
       loadStrategyAnalytics(),
+      loadPaperTradingPerformance(),
     ]);
   }
 
@@ -611,7 +732,7 @@ export default function PerformancePage() {
   }, [strategyData]);
 
 
-    /*
+  /*
    * A market is only eligible for a "best" comparison when:
    * 1. It has enough evaluated signals.
    * 2. At least two markets meet that evidence threshold.
@@ -703,7 +824,7 @@ export default function PerformancePage() {
     return [...candidates].sort(
       (a, b) =>
         b.stats.accuracy -
-        a.stats.accuracy ||
+          a.stats.accuracy ||
         b.stats.signals -
           a.stats.signals,
     )[0];
@@ -744,7 +865,7 @@ export default function PerformancePage() {
       return analytics.confidenceStats
         .filter(
           (item) =>
-            item.label === "80–89%" ||
+            item.label === "80â€“89%" ||
             item.label === "90%+",
         )
         .reduce(
@@ -753,6 +874,44 @@ export default function PerformancePage() {
           0,
         );
     }, [analytics]);
+
+
+  const paperSummary =
+    paperPerformance?.summary ?? null;
+
+
+  const paperEquityStats = useMemo(() => {
+    const points =
+      paperPerformance?.equity_curve ??
+      [];
+
+    if (points.length === 0) {
+      return {
+        min: 0,
+        max: 0,
+        range: 0,
+      };
+    }
+
+    const values =
+      points.map(
+        (point) => point.equity,
+      );
+
+    const min = Math.min(
+      ...values,
+    );
+
+    const max = Math.max(
+      ...values,
+    );
+
+    return {
+      min,
+      max,
+      range: max - min,
+    };
+  }, [paperPerformance]);
 
 
   function handleBack() {
@@ -786,7 +945,8 @@ export default function PerformancePage() {
 
               <p className="mt-2 max-w-3xl text-sm text-slate-500">
                 Historical outcome analysis, directional performance,
-                confidence behaviour, return and risk metrics.
+                confidence behaviour, paper-trading results and
+                research metrics.
               </p>
 
             </div>
@@ -948,6 +1108,892 @@ export default function PerformancePage() {
           </section>
 
 
+          {/* ========================================================= */}
+          {/* PAPER TRADING PERFORMANCE */}
+          {/* ========================================================= */}
+          <section className="mb-10">
+
+            <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+
+              <div>
+
+                <div className="flex items-center gap-2">
+
+                  <h2 className="text-lg font-bold text-slate-900">
+                    Paper Trading Performance
+                  </h2>
+
+                  <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+                    Simulated
+                  </span>
+
+                </div>
+
+                <p className="mt-1 max-w-3xl text-sm text-slate-500">
+                  Actual results from SignalPilot&apos;s simulated paper
+                  trading account. These figures are separate from
+                  Strategy Lab research and historical signal evaluation.
+                </p>
+
+              </div>
+
+
+              {paperAccountId && (
+                <div className="text-xs font-medium text-slate-500">
+                  Paper account #{paperAccountId}
+                </div>
+              )}
+
+            </div>
+
+
+            {paperError && (
+              <div className="mb-4 flex gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+
+                <XCircle className="mt-0.5 h-5 w-5 shrink-0" />
+
+                <div>
+                  {paperError}
+                </div>
+
+              </div>
+            )}
+
+
+            {paperLoading ? (
+              <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+
+                <div className="flex items-center gap-3 text-sm text-slate-500">
+                  <RefreshCw className="h-5 w-5 animate-spin" />
+                  Loading paper trading performance...
+                </div>
+
+              </div>
+            ) : !paperAccountId ? (
+              <div className="rounded-xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100">
+                  <Wallet className="h-6 w-6 text-slate-500" />
+                </div>
+
+                <h3 className="mt-4 font-bold text-slate-900">
+                  No paper trading account selected
+                </h3>
+
+                <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-slate-500">
+                  Create or select a paper trading account from the
+                  Paper Trading workspace to see simulated balance,
+                  P&amp;L, trade statistics and equity performance here.
+                </p>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    router.push(
+                      "/paper-trading",
+                    )
+                  }
+                  className="mt-5 inline-flex items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
+                >
+                  <Activity className="h-4 w-4" />
+                  Open Paper Trading
+                </button>
+
+              </div>
+            ) : paperPerformance ? (
+              <>
+
+                {/* Paper account summary */}
+                <div className="mb-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+
+                  <PaperMetricCard
+                    label="Current balance"
+                    value={formatCurrency(
+                      paperSummary?.current_balance ??
+                        0,
+                    )}
+                    icon={
+                      <Wallet className="h-5 w-5" />
+                    }
+                  />
+
+                  <PaperMetricCard
+                    label="Current equity"
+                    value={formatCurrency(
+                      paperSummary?.current_equity ??
+                        0,
+                    )}
+                    icon={
+                      <CircleDollarSign className="h-5 w-5" />
+                    }
+                  />
+
+                  <PaperMetricCard
+                    label="Realised P&L"
+                    value={formatPnl(
+                      paperSummary?.total_realised_pnl ??
+                        0,
+                    )}
+                    positive={
+                      (paperSummary?.total_realised_pnl ??
+                        0) >= 0
+                    }
+                    icon={
+                      <CheckCircle2 className="h-5 w-5" />
+                    }
+                  />
+
+                  <PaperMetricCard
+                    label="Unrealised P&L"
+                    value={formatPnl(
+                      paperSummary?.total_unrealised_pnl ??
+                        0,
+                    )}
+                    positive={
+                      (paperSummary?.total_unrealised_pnl ??
+                        0) >= 0
+                    }
+                    icon={
+                      <Activity className="h-5 w-5" />
+                    }
+                  />
+
+                </div>
+
+
+                {/* Paper trade statistics */}
+                <div className="mb-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-6">
+
+                  <PaperMetricCard
+                    label="Net P&L"
+                    value={formatPnl(
+                      paperSummary?.net_pnl ??
+                        0,
+                    )}
+                    positive={
+                      (paperSummary?.net_pnl ??
+                        0) >= 0
+                    }
+                    icon={
+                      <BarChart3 className="h-5 w-5" />
+                    }
+                  />
+
+                  <PaperMetricCard
+                    label="Closed trades"
+                    value={
+                      paperSummary?.closed_trades ??
+                      0
+                    }
+                    icon={
+                      <CheckCircle2 className="h-5 w-5" />
+                    }
+                  />
+
+                  <PaperMetricCard
+                    label="Open trades"
+                    value={
+                      paperSummary?.open_trades ??
+                      0
+                    }
+                    icon={
+                      <Activity className="h-5 w-5" />
+                    }
+                  />
+
+                  <PaperMetricCard
+                    label="Win rate"
+                    value={formatPercent(
+                      paperSummary?.win_rate ??
+                        0,
+                    )}
+                    icon={
+                      <Target className="h-5 w-5" />
+                    }
+                  />
+
+                  <PaperMetricCard
+                    label="Profit factor"
+                    value={
+                      (paperSummary?.total_trades ??
+                        0) > 0
+                        ? (
+                            paperSummary?.profit_factor ??
+                            0
+                          ).toFixed(2)
+                        : "â€”"
+                    }
+                    icon={
+                      <ShieldCheck className="h-5 w-5" />
+                    }
+                  />
+
+                  <PaperMetricCard
+                    label="Max drawdown"
+                    value={
+                      formatCurrency(
+                        Math.abs(
+                          paperSummary?.maximum_drawdown ??
+                            0,
+                        ),
+                      )
+                    }
+                    icon={
+                      <TrendingDown className="h-5 w-5" />
+                    }
+                    negative={
+                      (paperSummary?.maximum_drawdown ??
+                        0) !== 0
+                    }
+                  />
+
+                </div>
+
+
+                {/* Paper trading interpretation */}
+                <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-5">
+
+                  <div className="flex items-start gap-3">
+
+                    <div className="rounded-lg bg-white p-2">
+                      <ShieldCheck className="h-5 w-5 text-emerald-600" />
+                    </div>
+
+                    <div>
+
+                      <p className="font-semibold text-emerald-900">
+                        Simulated trading results
+                      </p>
+
+                      <p className="mt-1 text-sm leading-6 text-emerald-800">
+                        These figures come from SignalPilot&apos;s paper
+                        trading engine and represent simulated execution.
+                        They are different from the Strategy Lab&apos;s
+                        hypothetical historical research metrics and do not
+                        represent live trading results.
+                      </p>
+
+                    </div>
+
+                  </div>
+
+                </div>
+
+
+                {/* Win/loss and risk metrics */}
+                <div className="mb-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+
+                  <AnalyticsCard
+                    label="Average trade"
+                    value={formatPnl(
+                      paperSummary?.average_trade ??
+                        0,
+                    )}
+                    description="Average realised P&L across closed paper trades."
+                  />
+
+                  <AnalyticsCard
+                    label="Average winning trade"
+                    value={formatPnl(
+                      paperSummary?.average_winning_trade ??
+                        0,
+                    )}
+                    description="Average realised P&L among profitable closed trades."
+                  />
+
+                  <AnalyticsCard
+                    label="Average losing trade"
+                    value={formatPnl(
+                      paperSummary?.average_losing_trade ??
+                        0,
+                    )}
+                    description="Average realised P&L among losing closed trades."
+                    negative
+                  />
+
+                  <AnalyticsCard
+                    label="Drawdown"
+                    value={`${formatCurrency(
+                      Math.abs(
+                        paperSummary?.maximum_drawdown ??
+                          0,
+                      ),
+                    )} (${formatPercent(
+                      Math.abs(
+                        paperSummary?.maximum_drawdown_percent ??
+                          0,
+                      ),
+                    )})`}
+                    description="Largest realised-equity decline from a previous peak."
+                    negative={
+                      (paperSummary?.maximum_drawdown ??
+                        0) !== 0
+                    }
+                  />
+
+                </div>
+
+
+                {/* Paper equity curve */}
+                <PaperEquityCurve
+                  points={
+                    paperPerformance.equity_curve
+                  }
+                  min={
+                    paperEquityStats.min
+                  }
+                  max={
+                    paperEquityStats.max
+                  }
+                  range={
+                    paperEquityStats.range
+                  }
+                />
+
+
+                {/* Paper performance by market and side */}
+                <div className="mt-8 grid gap-4 lg:grid-cols-2">
+
+                  <PaperBreakdownCard
+                    title="Performance by market"
+                    description="Realised results grouped by paper-traded market."
+                  >
+
+                    {paperPerformance.by_market.length ===
+                    0 ? (
+                      <EmptyState text="No closed paper trades by market yet." />
+                    ) : (
+                      <div className="overflow-x-auto">
+
+                        <table className="w-full text-left text-sm">
+
+                          <thead className="border-b border-slate-200 bg-slate-50">
+
+                            <tr className="text-slate-500">
+
+                              <th className="px-5 py-4 font-semibold">
+                                Market
+                              </th>
+
+                              <th className="px-5 py-4 font-semibold">
+                                Trades
+                              </th>
+
+                              <th className="px-5 py-4 font-semibold">
+                                Wins
+                              </th>
+
+                              <th className="px-5 py-4 font-semibold">
+                                Losses
+                              </th>
+
+                              <th className="px-5 py-4 font-semibold">
+                                Win rate
+                              </th>
+
+                              <th className="px-5 py-4 font-semibold">
+                                P&amp;L
+                              </th>
+
+                            </tr>
+
+                          </thead>
+
+                          <tbody>
+
+                            {paperPerformance.by_market.map(
+                              (item) => (
+                                <tr
+                                  key={item.market}
+                                  className="border-b border-slate-100 last:border-0 hover:bg-slate-50"
+                                >
+
+                                  <td className="px-5 py-4 font-semibold text-slate-900">
+                                    {item.market}
+                                  </td>
+
+                                  <td className="px-5 py-4 text-slate-600">
+                                    {item.total_trades}
+                                  </td>
+
+                                  <td className="px-5 py-4 font-medium text-emerald-600">
+                                    {item.winning_trades}
+                                  </td>
+
+                                  <td className="px-5 py-4 font-medium text-red-600">
+                                    {item.losing_trades}
+                                  </td>
+
+                                  <td className="px-5 py-4 font-medium text-slate-700">
+                                    {formatPercent(
+                                      item.win_rate,
+                                    )}
+                                  </td>
+
+                                  <td
+                                    className={`px-5 py-4 font-semibold ${
+                                      item.total_realised_pnl >=
+                                      0
+                                        ? "text-emerald-600"
+                                        : "text-red-600"
+                                    }`}
+                                  >
+                                    {formatPnl(
+                                      item.total_realised_pnl,
+                                    )}
+                                  </td>
+
+                                </tr>
+                              ),
+                            )}
+
+                          </tbody>
+
+                        </table>
+
+                      </div>
+                    )}
+
+                  </PaperBreakdownCard>
+
+
+                  <PaperBreakdownCard
+                    title="Performance by side"
+                    description="Realised results separated between BUY and SELL paper trades."
+                  >
+
+                    {paperPerformance.by_side.length ===
+                    0 ? (
+                      <EmptyState text="No closed paper trades by side yet." />
+                    ) : (
+                      <div className="overflow-x-auto">
+
+                        <table className="w-full text-left text-sm">
+
+                          <thead className="border-b border-slate-200 bg-slate-50">
+
+                            <tr className="text-slate-500">
+
+                              <th className="px-5 py-4 font-semibold">
+                                Side
+                              </th>
+
+                              <th className="px-5 py-4 font-semibold">
+                                Trades
+                              </th>
+
+                              <th className="px-5 py-4 font-semibold">
+                                Wins
+                              </th>
+
+                              <th className="px-5 py-4 font-semibold">
+                                Losses
+                              </th>
+
+                              <th className="px-5 py-4 font-semibold">
+                                Win rate
+                              </th>
+
+                              <th className="px-5 py-4 font-semibold">
+                                P&amp;L
+                              </th>
+
+                            </tr>
+
+                          </thead>
+
+                          <tbody>
+
+                            {paperPerformance.by_side.map(
+                              (item) => (
+                                <tr
+                                  key={item.side}
+                                  className="border-b border-slate-100 last:border-0 hover:bg-slate-50"
+                                >
+
+                                  <td className="px-5 py-4">
+
+                                    <span
+                                      className={`inline-flex items-center gap-1 font-semibold ${
+                                        item.side ===
+                                        "BUY"
+                                          ? "text-emerald-600"
+                                          : "text-red-600"
+                                      }`}
+                                    >
+
+                                      {item.side ===
+                                      "BUY" ? (
+                                        <ArrowUpRight className="h-4 w-4" />
+                                      ) : (
+                                        <ArrowDownRight className="h-4 w-4" />
+                                      )}
+
+                                      {item.side}
+
+                                    </span>
+
+                                  </td>
+
+                                  <td className="px-5 py-4 text-slate-600">
+                                    {item.total_trades}
+                                  </td>
+
+                                  <td className="px-5 py-4 font-medium text-emerald-600">
+                                    {item.winning_trades}
+                                  </td>
+
+                                  <td className="px-5 py-4 font-medium text-red-600">
+                                    {item.losing_trades}
+                                  </td>
+
+                                  <td className="px-5 py-4 font-medium text-slate-700">
+                                    {formatPercent(
+                                      item.win_rate,
+                                    )}
+                                  </td>
+
+                                  <td
+                                    className={`px-5 py-4 font-semibold ${
+                                      item.total_realised_pnl >=
+                                      0
+                                        ? "text-emerald-600"
+                                        : "text-red-600"
+                                    }`}
+                                  >
+                                    {formatPnl(
+                                      item.total_realised_pnl,
+                                    )}
+                                  </td>
+
+                                </tr>
+                              ),
+                            )}
+
+                          </tbody>
+
+                        </table>
+
+                      </div>
+                    )}
+
+                  </PaperBreakdownCard>
+
+                </div>
+
+
+                {/* Paper performance over time */}
+                <div className="mt-4 rounded-xl border border-slate-200 bg-white shadow-sm">
+
+                  <div className="border-b border-slate-200 bg-slate-50 px-5 py-4">
+
+                    <h3 className="font-semibold text-slate-900">
+                      Performance over time
+                    </h3>
+
+                    <p className="mt-1 text-xs text-slate-500">
+                      Realised paper-trading results grouped by period.
+                    </p>
+
+                  </div>
+
+
+                  {paperPerformance.over_time.length ===
+                  0 ? (
+                    <EmptyState text="No closed paper-trading periods yet." />
+                  ) : (
+                    <div className="overflow-x-auto">
+
+                      <table className="w-full text-left text-sm">
+
+                        <thead className="border-b border-slate-200">
+
+                          <tr className="text-slate-500">
+
+                            <th className="px-5 py-4 font-semibold">
+                              Period
+                            </th>
+
+                            <th className="px-5 py-4 font-semibold">
+                              Trades
+                            </th>
+
+                            <th className="px-5 py-4 font-semibold">
+                              Wins
+                            </th>
+
+                            <th className="px-5 py-4 font-semibold">
+                              Losses
+                            </th>
+
+                            <th className="px-5 py-4 font-semibold">
+                              Win rate
+                            </th>
+
+                            <th className="px-5 py-4 font-semibold">
+                              Total P&amp;L
+                            </th>
+
+                            <th className="px-5 py-4 font-semibold">
+                              Average P&amp;L
+                            </th>
+
+                          </tr>
+
+                        </thead>
+
+                        <tbody>
+
+                          {paperPerformance.over_time.map(
+  (item) => (
+    <tr
+      key={item.date}
+      className="border-b border-slate-100 last:border-0 hover:bg-slate-50"
+    >
+      <td className="px-5 py-4 font-semibold text-slate-900">
+        {item.date}
+      </td>
+
+      <td className="px-5 py-4 text-slate-600">
+        {item.total_trades}
+      </td>
+
+      <td className="px-5 py-4 font-medium text-emerald-600">
+        {item.winning_trades}
+      </td>
+
+      <td className="px-5 py-4 font-medium text-red-600">
+        {item.losing_trades}
+      </td>
+
+      <td className="px-5 py-4 font-medium text-slate-700">
+        {formatPercent(item.win_rate)}
+      </td>
+
+      <td
+        className={`px-5 py-4 font-semibold ${
+          item.total_realised_pnl >= 0
+            ? "text-emerald-600"
+            : "text-red-600"
+        }`}
+      >
+        {formatPnl(item.total_realised_pnl)}
+      </td>
+
+      <td
+        className={`px-5 py-4 font-medium ${
+          item.total_trades > 0 &&
+          item.total_realised_pnl / item.total_trades >= 0
+            ? "text-emerald-600"
+            : "text-red-600"
+        }`}
+      >
+        {formatPnl(
+          item.total_trades > 0
+            ? item.total_realised_pnl / item.total_trades
+            : 0,
+        )}
+      </td>
+    </tr>
+  ),
+)}
+</tbody>
+
+                      </table>
+
+                    </div>
+                  )}
+
+                </div>
+
+
+                {/* Recent paper trades */}
+                <div className="mt-4 rounded-xl border border-slate-200 bg-white shadow-sm">
+
+                  <div className="border-b border-slate-200 bg-slate-50 px-5 py-4">
+
+                    <h3 className="font-semibold text-slate-900">
+                      Recent paper trades
+                    </h3>
+
+                    <p className="mt-1 text-xs text-slate-500">
+                      Latest closed and recorded simulated trades for
+                      the selected paper account.
+                    </p>
+
+                  </div>
+
+
+                  {paperPerformance.recent_trades.length ===
+                  0 ? (
+                    <EmptyState text="No closed paper trades yet." />
+                  ) : (
+                    <div className="overflow-x-auto">
+
+                      <table className="w-full text-left text-sm">
+
+                        <thead className="border-b border-slate-200">
+
+                          <tr className="text-slate-500">
+
+                            <th className="px-5 py-4 font-semibold">
+                              Market
+                            </th>
+
+                            <th className="px-5 py-4 font-semibold">
+                              Timeframe
+                            </th>
+
+                            <th className="px-5 py-4 font-semibold">
+                              Side
+                            </th>
+
+                            <th className="px-5 py-4 font-semibold">
+                              Quantity
+                            </th>
+
+                            <th className="px-5 py-4 font-semibold">
+                              Entry
+                            </th>
+
+                            <th className="px-5 py-4 font-semibold">
+                              Exit
+                            </th>
+
+                            <th className="px-5 py-4 font-semibold">
+                              P&amp;L
+                            </th>
+
+                            <th className="px-5 py-4 font-semibold">
+                              Closed
+                            </th>
+
+                          </tr>
+
+                        </thead>
+
+                        <tbody>
+
+                          {paperPerformance.recent_trades.map(
+                            (trade) => (
+                              <tr
+                                key={`${trade.position_id}-${trade.symbol}-${trade.timeframe}-${trade.side}-${trade.opened_at}-${trade.closed_at ?? "open"}`}
+                                className="border-b border-slate-100 last:border-0 hover:bg-slate-50"
+                              >
+
+                                <td className="px-5 py-4 font-semibold text-slate-900">
+                                  {trade.symbol}
+                                </td>
+
+                                <td className="px-5 py-4 text-slate-600">
+                                  {trade.timeframe}
+                                </td>
+
+                                <td className="px-5 py-4">
+
+                                  <span
+                                    className={`inline-flex items-center gap-1 font-semibold ${
+                                      trade.side ===
+                                      "BUY"
+                                        ? "text-emerald-600"
+                                        : "text-red-600"
+                                    }`}
+                                  >
+
+                                    {trade.side ===
+                                    "BUY" ? (
+                                      <ArrowUpRight className="h-4 w-4" />
+                                    ) : (
+                                      <ArrowDownRight className="h-4 w-4" />
+                                    )}
+
+                                    {trade.side}
+
+                                  </span>
+
+                                </td>
+
+                                <td className="px-5 py-4 text-slate-600">
+                                  {trade.quantity}
+                                </td>
+
+                                <td className="px-5 py-4 text-slate-600">
+                                  {formatPrice(
+                                    trade.entry_price,
+                                  )}
+                                </td>
+
+                                <td className="px-5 py-4 text-slate-600">
+                                  {trade.exit_price !==
+                                  null
+                                    ? formatPrice(
+                                        trade.exit_price,
+                                      )
+                                    : "â€”"}
+                                </td>
+
+                                <td
+                                  className={`px-5 py-4 font-semibold ${
+                                    trade.realised_pnl >=
+                                    0
+                                      ? "text-emerald-600"
+                                      : "text-red-600"
+                                  }`}
+                                >
+                                  {formatPnl(
+                                    trade.realised_pnl,
+                                  )}
+                                </td>
+
+                                <td className="whitespace-nowrap px-5 py-4 text-slate-500">
+                                  {formatTimestamp(
+                                    trade.closed_at,
+                                  )}
+                                </td>
+
+                              </tr>
+                            ),
+                          )}
+
+                        </tbody>
+
+                      </table>
+
+                    </div>
+                  )}
+
+                </div>
+
+
+                <div className="mt-4 flex gap-3 rounded-xl border border-blue-200 bg-blue-50 p-4">
+
+                  <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-blue-600" />
+
+                  <div>
+
+                    <p className="font-semibold text-blue-900">
+                      Paper trading disclosure
+                    </p>
+
+                    <p className="mt-1 text-sm leading-6 text-blue-800">
+                      Paper trading uses simulated account balances and
+                      simulated execution. Results can differ materially
+                      from live-market execution because of spreads,
+                      slippage, liquidity, latency and other real-world
+                      factors. This workspace does not represent a live
+                      brokerage account.
+                    </p>
+
+                  </div>
+
+                </div>
+
+              </>
+            ) : null}
+
+          </section>
+
+
           {/* Strategy Lab sample */}
           <section className="mb-10">
 
@@ -972,8 +2018,8 @@ export default function PerformancePage() {
 
                 {strategyData && (
                   <div className="text-xs font-medium text-slate-500">
-                    {strategyData.backtest.symbol} ·{" "}
-                    {strategyData.backtest.timeframe} ·{" "}
+                    {strategyData.backtest.symbol} Â·{" "}
+                    {strategyData.backtest.timeframe} Â·{" "}
                     {strategyData.backtest.candles_used} candles
                   </div>
                 )}
@@ -1151,7 +2197,7 @@ export default function PerformancePage() {
                         ? analytics.winLossRatio.toFixed(
                             2,
                           )
-                        : "∞"
+                        : "âˆž"
                     }
                     icon={
                       <BarChart3 className="h-5 w-5" />
@@ -1167,7 +2213,7 @@ export default function PerformancePage() {
                         ? analytics.profitFactor.toFixed(
                             2,
                           )
-                        : "∞"
+                        : "âˆž"
                     }
                     icon={
                       <ShieldCheck className="h-5 w-5" />
@@ -1379,7 +2425,7 @@ export default function PerformancePage() {
                                     ? formatPercent(
                                         item.hitRate,
                                       )
-                                    : "—"}
+                                    : "â€”"}
                                 </td>
 
                                 <td
@@ -1394,7 +2440,7 @@ export default function PerformancePage() {
                                     ? formatChange(
                                         item.averageChange,
                                       )
-                                    : "—"}
+                                    : "â€”"}
                                 </td>
 
                                 <td
@@ -1409,7 +2455,7 @@ export default function PerformancePage() {
                                     ? formatChange(
                                         item.cumulativeChange,
                                       )
-                                    : "—"}
+                                    : "â€”"}
                                 </td>
 
                                 <td className="px-5 py-4">
@@ -1440,7 +2486,7 @@ export default function PerformancePage() {
                   <div className="mt-4 grid gap-4 md:grid-cols-3">
 
                     <AnalyticsCard
-                      label="Strongest observed band"
+                      label="Strongest evidence-supported band"
                       value={
                         strongestConfidenceBand
                           ? strongestConfidenceBand.label
@@ -1473,7 +2519,7 @@ export default function PerformancePage() {
                             analytics.confidenceStats.filter(
                               (item) =>
                                 item.label ===
-                                  "80–89%" ||
+                                  "80â€“89%" ||
                                 item.label ===
                                   "90%+",
                             );
@@ -1877,7 +2923,7 @@ export default function PerformancePage() {
                                   </span>
                                 ) : (
                                   <span className="text-slate-400">
-                                    —
+                                    â€”
                                   </span>
                                 )}
 
@@ -1889,7 +2935,7 @@ export default function PerformancePage() {
                                   ? formatPercent(
                                       item.average_confidence,
                                     )
-                                  : "—"}
+                                  : "â€”"}
 
                               </td>
 
@@ -2002,7 +3048,7 @@ export default function PerformancePage() {
               />
 
 
-                            <RankingCard
+              <RankingCard
                 title="Best-supported market"
                 icon={
                   <TrendingUp className="h-5 w-5 text-slate-600" />
@@ -2038,7 +3084,7 @@ export default function PerformancePage() {
               />
 
 
-                            <RankingCard
+              <RankingCard
                 title="Best-supported timeframe"
                 icon={
                   <Clock3 className="h-5 w-5 text-slate-600" />
@@ -2528,6 +3574,21 @@ export default function PerformancePage() {
 
                   </p>
 
+
+                  <p>
+
+                    <span className="font-semibold text-slate-900">
+                      Paper-trading P&amp;L
+                    </span>{" "}
+
+                    is based on simulated paper positions that have been
+                    closed by the paper-trading engine. Realised P&amp;L is
+                    added to the simulated account balance, while
+                    unrealised P&amp;L comes from currently open positions
+                    marked to market.
+
+                  </p>
+
                 </div>
 
               </div>
@@ -2575,11 +3636,18 @@ export default function PerformancePage() {
                   </p>
 
                   <p>
+                    Paper-trading results provide a separate execution-level
+                    view of the simulated trading engine. They should be
+                    interpreted separately from historical signal accuracy
+                    and Strategy Lab research metrics.
+                  </p>
+
+                  <p>
                     The long-term goal is to collect enough evaluated signals
-                    to determine whether SignalPilot&apos;s confidence score
-                    is genuinely calibrated and whether certain markets,
-                    directions or timeframes consistently produce stronger
-                    historical results.
+                    and paper-trading observations to determine whether
+                    SignalPilot&apos;s confidence score, signal behaviour and
+                    simulated execution results remain consistent across
+                    different market conditions.
                   </p>
 
                 </div>
@@ -2597,6 +3665,237 @@ export default function PerformancePage() {
   );
 }
 
+
+/* ========================================================= */
+/* PAPER TRADING COMPONENTS                                  */
+/* ========================================================= */
+
+function PaperMetricCard({
+  label,
+  value,
+  icon,
+  positive,
+  negative = false,
+}: {
+  label: string;
+  value: string | number;
+  icon: React.ReactNode;
+  positive?: boolean;
+  negative?: boolean;
+}) {
+  let iconClassName = "text-slate-500";
+
+  if (positive === true) {
+    iconClassName = "text-emerald-600";
+  }
+
+  if (positive === false) {
+    iconClassName = "text-red-600";
+  }
+
+  if (negative) {
+    iconClassName = "text-red-600";
+  }
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-slate-300 hover:shadow">
+
+      <div className="mb-4 flex items-center justify-between">
+
+        <div className={iconClassName}>
+          {icon}
+        </div>
+
+      </div>
+
+      <div
+        className={`text-2xl font-bold ${
+          positive === true
+            ? "text-emerald-600"
+            : positive === false
+              ? "text-red-600"
+              : negative
+                ? "text-red-600"
+                : "text-slate-900"
+        }`}
+      >
+        {value}
+      </div>
+
+      <div className="mt-1 text-sm font-medium text-slate-500">
+        {label}
+      </div>
+
+    </div>
+  );
+}
+
+
+function PaperBreakdownCard({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+
+      <div className="border-b border-slate-200 bg-slate-50 px-5 py-4">
+
+        <h3 className="font-semibold text-slate-900">
+          {title}
+        </h3>
+
+        <p className="mt-1 text-xs text-slate-500">
+          {description}
+        </p>
+
+      </div>
+
+      {children}
+
+    </div>
+  );
+}
+
+
+function PaperEquityCurve({
+  points,
+  min,
+  max,
+  range,
+}: {
+  points: PaperEquityPoint[];
+  min: number;
+  max: number;
+  range: number;
+}) {
+  const visiblePoints =
+    points.slice(-20);
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+
+        <div>
+
+          <h3 className="font-semibold text-slate-900">
+            Paper-trading equity curve
+          </h3>
+
+          <p className="mt-1 text-xs leading-5 text-slate-500">
+            Simulated account equity after realised paper-trading
+            activity. The latest 20 recorded equity points are shown.
+          </p>
+
+        </div>
+
+
+        {points.length > 0 && (
+          <div className="text-xs font-medium text-slate-500">
+            {points.length} recorded point
+            {points.length === 1 ? "" : "s"}
+          </div>
+        )}
+
+      </div>
+
+
+      {points.length === 0 ? (
+        <EmptyState text="No equity history is available yet." />
+      ) : (
+        <div className="mt-5">
+
+          <div className="flex items-end gap-1 overflow-x-auto pb-2">
+
+            {visiblePoints.map(
+              (point, index) => {
+                const normalized =
+                  range > 0
+                    ? (point.equity - min) /
+                      range
+                    : 0.5;
+
+                const height =
+                  Math.max(
+                    8,
+                    Math.min(
+                      100,
+                      18 +
+                        normalized *
+                          72,
+                    ),
+                  );
+
+                const previous =
+                  index > 0
+                    ? visiblePoints[
+                        index - 1
+                      ].equity
+                    : point.equity;
+
+                const improved =
+                  point.equity >=
+                  previous;
+
+                return (
+                  <div
+                    key={`${point.timestamp ?? "point"}-${point.position_id ?? "initial"}-${index}`}
+                    className="group flex min-w-7 flex-1 flex-col items-center justify-end"
+                  >
+
+                    <div className="pointer-events-none mb-2 hidden rounded-lg border border-slate-200 bg-white px-2 py-1 text-[10px] text-slate-600 shadow-sm group-hover:block">
+                      {formatCurrency(
+                        point.equity,
+                      )}
+                    </div>
+
+                    <div
+                      className={`w-full min-w-3 rounded-t-md transition ${
+                        improved
+                          ? "bg-emerald-400"
+                          : "bg-red-300"
+                      }`}
+                      style={{
+                        height: `${height}px`,
+                      }}
+                    />
+
+                  </div>
+                );
+              },
+            )}
+
+          </div>
+
+
+          <div className="mt-2 flex items-center justify-between border-t border-slate-100 pt-3 text-xs text-slate-400">
+
+            <span>
+              Low {formatCurrency(min)}
+            </span>
+
+            <span>
+              High {formatCurrency(max)}
+            </span>
+
+          </div>
+
+        </div>
+      )}
+
+    </div>
+  );
+}
+
+
+/* ========================================================= */
+/* EXISTING PERFORMANCE COMPONENTS                           */
+/* ========================================================= */
 
 function MetricCard({
   label,
@@ -3024,3 +4323,8 @@ function EmptyState({
     </div>
   );
 }
+
+
+
+
+

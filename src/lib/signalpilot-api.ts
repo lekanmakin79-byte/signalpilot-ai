@@ -1,4 +1,4 @@
-const API_BASE_URL =
+﻿const API_BASE_URL =
   process.env.NEXT_PUBLIC_SIGNALPILOT_API_URL ||
   "http://127.0.0.1:8000";
 
@@ -222,6 +222,7 @@ export type SignalResult = {
 
   data_points: number;
   explanation: string;
+  quality: SignalQuality;
 };
 
 export type SignalResponse = {
@@ -266,18 +267,30 @@ export type SignalRankingResponse = {
 
 async function fetchBackend<T>(
   endpoint: string,
+  options?: RequestInit,
 ): Promise<T> {
   const response = await fetch(
     `${API_BASE_URL}${endpoint}`,
     {
       cache: "no-store",
+      ...options,
     },
   );
 
   if (!response.ok) {
-    throw new Error(
-      `SignalPilot API error: ${response.status}`,
-    );
+    let message = `SignalPilot API error: ${response.status}`;
+
+    try {
+      const errorBody = await response.json();
+
+      if (typeof errorBody?.detail === "string") {
+        message = errorBody.detail;
+      }
+    } catch {
+      // Keep the default HTTP error message.
+    }
+
+    throw new Error(message);
   }
 
   return response.json();
@@ -529,5 +542,422 @@ export async function getSignalOpportunities(
     `/signals/opportunities?interval=${encodeURIComponent(
       interval,
     )}&limit=${limit}`,
+  );
+}
+
+/* ============================================================
+   PAPER TRADING
+   ============================================================ */
+
+export type PaperTradingAccount = {
+  id: number;
+  name: string;
+  initial_balance: number;
+  balance: number;
+  equity: number;
+  currency: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type PaperOrder = {
+  id: number;
+  account_id: number;
+  symbol: string;
+  timeframe: string;
+  side: "BUY" | "SELL";
+  order_type: string;
+  quantity: number;
+  requested_price: number;
+  executed_price: number | null;
+  stop_loss: number | null;
+  take_profit: number | null;
+  status: string;
+  signal_history_id: number | null;
+  confidence: number | null;
+  quality_score: number | null;
+  created_at: string;
+  executed_at: string | null;
+};
+
+export type PaperPosition = {
+  id: number;
+  account_id: number;
+  symbol: string;
+  timeframe: string;
+  side: "BUY" | "SELL";
+  quantity: number;
+  entry_price: number;
+  current_price: number;
+  stop_loss: number | null;
+  take_profit: number | null;
+  unrealised_pnl: number;
+  realised_pnl: number | null;
+  status: string;
+  order_id: number | null;
+  opened_at: string;
+  closed_at: string | null;
+  exit_price: number | null;
+};
+
+export type PaperAccountResponse = {
+  success: boolean;
+  account: PaperTradingAccount;
+};
+
+export type PaperOrdersResponse = {
+  success: boolean;
+  count: number;
+  orders: PaperOrder[];
+};
+
+export type PaperPositionsResponse = {
+  success: boolean;
+  count: number;
+  positions: PaperPosition[];
+};
+
+export type PaperTradeResponse = {
+  success: boolean;
+  approved: boolean;
+  reason?: string | null;
+  account?: PaperTradingAccount;
+  order?: PaperOrder | null;
+  position?: PaperPosition | null;
+  decision?: {
+    approved?: boolean;
+    action?: string | null;
+    reason?: string | null;
+    [key: string]: unknown;
+  } | null;
+  risk_assessment?: {
+    approved?: boolean;
+    reason?: string | null;
+    [key: string]: unknown;
+  } | null;
+  order_id?: number | null;
+  position_id?: number | null;
+};
+
+export type AutoPaperTradeResponse = {
+  success: boolean;
+  status:
+    | "EXECUTED"
+    | "REJECTED"
+    | "SKIPPED_OPEN_POSITION";
+
+  executed: boolean;
+  reason?: string | null;
+
+  account: PaperTradingAccount;
+
+  signal: SignalResult | null;
+
+  history_id: number | null;
+
+  decision: {
+    approved?: boolean;
+    action?: string | null;
+    reason?: string | null;
+    [key: string]: unknown;
+  } | null;
+
+  risk_assessment: {
+    approved?: boolean;
+    reason?: string | null;
+    [key: string]: unknown;
+  } | null;
+
+  order_id: number | null;
+  position_id: number | null;
+
+  order: PaperOrder | null;
+  position: PaperPosition | null;
+};
+
+export type PaperMarkResponse = {
+  success: boolean;
+  account: PaperTradingAccount;
+  position: PaperPosition;
+};
+
+export type PaperCloseResponse = {
+  success: boolean;
+  account: PaperTradingAccount;
+  position: PaperPosition;
+  realised_pnl: number;
+};
+
+/* ============================================================
+   TRADING CONTROL / KILL SWITCH
+   ============================================================ */
+
+export type TradingControlStatus = {
+  success: boolean;
+  enabled: boolean;
+  status: "RUNNING" | "STOPPED";
+  reason: string | null;
+  updated_at: string;
+};
+
+export async function getTradingControlStatus(): Promise<TradingControlStatus> {
+  return fetchBackend("/trading-control/status");
+}
+
+export async function stopAutomatedTrading(): Promise<TradingControlStatus> {
+  return fetchBackend("/trading-control/stop", {
+    method: "POST",
+  });
+}
+
+export async function startAutomatedTrading(): Promise<TradingControlStatus> {
+  return fetchBackend("/trading-control/start", {
+    method: "POST",
+  });
+}
+
+/* ============================================================
+   PAPER TRADING PERFORMANCE
+   ============================================================ */
+
+export type PaperTradingPerformanceSummary = {
+  initial_balance: number;
+  current_balance: number;
+  current_equity: number;
+
+  total_realised_pnl: number;
+  total_unrealised_pnl: number;
+  net_pnl: number;
+
+  total_trades: number;
+  closed_trades: number;
+  open_trades: number;
+
+  winning_trades: number;
+  losing_trades: number;
+  breakeven_trades: number;
+
+  win_rate: number;
+
+  average_trade: number;
+  average_winning_trade: number;
+  average_losing_trade: number;
+
+  gross_profit: number;
+  gross_loss: number;
+  profit_factor: number;
+
+  best_trade: number;
+  worst_trade: number;
+
+  maximum_drawdown: number;
+  maximum_drawdown_percent: number;
+};
+
+export type PaperMarketPerformance = {
+  market: string;
+  total_trades: number;
+  winning_trades: number;
+  losing_trades: number;
+  breakeven_trades: number;
+  win_rate: number;
+  total_realised_pnl: number;
+  average_trade: number;
+  average_winning_trade: number;
+  average_losing_trade: number;
+  profit_factor: number;
+};
+
+export type PaperSidePerformance = {
+  side: "BUY" | "SELL";
+  total_trades: number;
+  winning_trades: number;
+  losing_trades: number;
+  breakeven_trades: number;
+  win_rate: number;
+  total_realised_pnl: number;
+  average_trade: number;
+  average_winning_trade: number;
+  average_losing_trade: number;
+  profit_factor: number;
+};
+
+export type PaperTimePerformance = {
+  date: string;
+  total_trades: number;
+  winning_trades: number;
+  losing_trades: number;
+  total_realised_pnl: number;
+  win_rate: number;
+};
+
+export type PaperEquityPoint = {
+  timestamp: string | null;
+  position_id: number | null;
+  symbol: string | null;
+  side: "BUY" | "SELL" | null;
+  realised_pnl: number;
+  equity: number;
+};
+
+export type PaperRecentTrade = {
+  position_id: number;
+  symbol: string;
+  timeframe: string;
+  side: "BUY" | "SELL";
+  quantity: number;
+  entry_price: number;
+  exit_price: number | null;
+  realised_pnl: number;
+  opened_at: string;
+  closed_at: string | null;
+  order_id: number | null;
+};
+
+export type PaperTradingPerformanceResponse = {
+  success: boolean;
+
+  account: PaperTradingAccount;
+
+  summary: PaperTradingPerformanceSummary;
+
+  by_market: PaperMarketPerformance[];
+
+  by_side: PaperSidePerformance[];
+
+  over_time: PaperTimePerformance[];
+
+  equity_curve: PaperEquityPoint[];
+
+  recent_trades: PaperRecentTrade[];
+};
+
+export async function createPaperTradingAccount(
+  name: string,
+  initialBalance: number,
+  currency = "USD",
+): Promise<PaperAccountResponse> {
+  return fetchBackend("/paper-trading/accounts", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      name,
+      initial_balance: initialBalance,
+      currency,
+    }),
+  } as RequestInit);
+}
+
+export async function getPaperTradingAccount(
+  accountId: number,
+): Promise<PaperAccountResponse> {
+  return fetchBackend(
+    `/paper-trading/accounts/${accountId}`,
+  );
+}
+
+export async function executePaperTrade(
+  accountId: number,
+  signal: SignalResult | MarketAnalysis,
+  entryPrice: number,
+  atr14: number | null,
+  signalHistoryId?: number | null,
+): Promise<PaperTradeResponse> {
+  return fetchBackend("/paper-trading/trades", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      account_id: accountId,
+      signal,
+      entry_price: entryPrice,
+      atr14,
+      signal_history_id:
+        signalHistoryId ?? null,
+    }),
+  } as RequestInit);
+}
+
+export async function autoEvaluatePaperTrade(
+  accountId: number,
+  symbol: string,
+  interval = "5m",
+  limit = 100,
+): Promise<AutoPaperTradeResponse> {
+  return fetchBackend("/paper-trading/auto-evaluate", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      account_id: accountId,
+      symbol,
+      interval,
+      limit,
+    }),
+  } as RequestInit);
+}
+
+export async function getPaperTradingOrders(
+  accountId: number,
+): Promise<PaperOrdersResponse> {
+  return fetchBackend(
+    `/paper-trading/accounts/${accountId}/orders`,
+  );
+}
+
+export async function getPaperTradingPositions(
+  accountId: number,
+): Promise<PaperPositionsResponse> {
+  return fetchBackend(
+    `/paper-trading/accounts/${accountId}/positions`,
+  );
+}
+
+export async function getPaperTradingPerformance(
+  accountId: number,
+): Promise<PaperTradingPerformanceResponse> {
+  return fetchBackend(
+    `/paper-trading/accounts/${accountId}/performance`,
+  );
+}
+
+export async function markPaperPosition(
+  positionId: number,
+  currentPrice: number,
+): Promise<PaperMarkResponse> {
+  return fetchBackend(
+    `/paper-trading/positions/${positionId}/mark`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        current_price: currentPrice,
+      }),
+    } as RequestInit,
+  );
+}
+
+export async function closePaperPosition(
+  positionId: number,
+  exitPrice: number,
+): Promise<PaperCloseResponse> {
+  return fetchBackend(
+    `/paper-trading/positions/${positionId}/close`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        exit_price: exitPrice,
+      }),
+    } as RequestInit,
   );
 }

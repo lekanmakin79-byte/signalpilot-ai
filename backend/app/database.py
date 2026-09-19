@@ -4,10 +4,7 @@ from sqlmodel import Field, SQLModel, Session, create_engine
 
 
 class SignalHistory(SQLModel, table=True):
-    id: int | None = Field(
-        default=None,
-        primary_key=True,
-    )
+    id: int | None = Field(default=None, primary_key=True)
 
     symbol: str = Field(index=True)
     timeframe: str = Field(index=True)
@@ -32,11 +29,8 @@ class SignalHistory(SQLModel, table=True):
     explanation: str
     data_points: int
     created_at: str
-
-    # Market candle that generated the signal
     signal_timestamp: str | None = None
 
-    # Outcome tracking
     evaluation_minutes: int | None = None
     evaluation_price: float | None = None
     price_change: float | None = None
@@ -45,21 +39,126 @@ class SignalHistory(SQLModel, table=True):
     evaluated_at: str | None = None
 
 
-# Production uses the Supabase PostgreSQL DATABASE_URL
-# stored in Vercel.
-#
-# Local development continues to use the existing
-# signalpilot.db SQLite database unless DATABASE_URL
-# is explicitly provided in the local environment.
+class PaperTradingAccount(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+
+    name: str = Field(index=True)
+
+    initial_balance: float
+    balance: float
+    equity: float
+
+    currency: str = "USD"
+
+    status: str = Field(
+        default="ACTIVE",
+        index=True,
+    )
+
+    created_at: str
+    updated_at: str
+
+
+class PaperOrder(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+
+    account_id: int = Field(index=True)
+
+    symbol: str = Field(index=True)
+    timeframe: str = Field(index=True)
+    side: str = Field(index=True)
+
+    order_type: str = "MARKET"
+
+    quantity: float
+
+    requested_price: float
+    executed_price: float | None = None
+
+    stop_loss: float | None = None
+    take_profit: float | None = None
+
+    status: str = Field(
+        default="PENDING",
+        index=True,
+    )
+
+    signal_history_id: int | None = Field(
+        default=None,
+        index=True,
+    )
+
+    confidence: float | None = None
+    quality_score: float | None = None
+
+    created_at: str
+    executed_at: str | None = None
+
+
+class PaperPosition(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+
+    account_id: int = Field(index=True)
+
+    symbol: str = Field(index=True)
+    timeframe: str = Field(index=True)
+    side: str = Field(index=True)
+
+    quantity: float
+
+    entry_price: float
+    current_price: float
+
+    stop_loss: float | None = None
+    take_profit: float | None = None
+
+    unrealised_pnl: float = 0.0
+    realised_pnl: float | None = None
+
+    status: str = Field(
+        default="OPEN",
+        index=True,
+    )
+
+    order_id: int = Field(index=True)
+
+    opened_at: str
+    closed_at: str | None = None
+    exit_price: float | None = None
+
+
+class TradingControl(SQLModel, table=True):
+    """
+    Backend-enforced control for automated paper trading.
+
+    When enabled is False, automated trade creation must stop.
+    Existing paper positions are not automatically closed.
+    """
+
+    id: int | None = Field(
+        default=None,
+        primary_key=True,
+    )
+
+    name: str = Field(
+        default="paper_trading",
+        index=True,
+        unique=True,
+    )
+
+    enabled: bool = True
+
+    reason: str | None = None
+
+    updated_at: str
+
+
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
     "sqlite:///signalpilot.db",
 )
 
 
-# SQLAlchemy defaults to psycopg2 for a plain
-# postgresql:// URL. This project uses psycopg 3,
-# so explicitly select the psycopg driver.
 if DATABASE_URL.startswith("postgresql://"):
     DATABASE_URL = DATABASE_URL.replace(
         "postgresql://",

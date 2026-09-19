@@ -13,6 +13,7 @@ import {
   Settings,
   Target,
   TrendingUp,
+  Wallet,
   X,
 } from "lucide-react";
 
@@ -57,6 +58,11 @@ const NAVIGATION_ITEMS = [
     label: "Strategy Lab",
     href: "/strategy-lab",
     icon: LineChart,
+  },
+    {
+    label: "Paper Trading",
+    href: "/paper-trading",
+    icon: Wallet,
   },
   {
     label: "Performance",

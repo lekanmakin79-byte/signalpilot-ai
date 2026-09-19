@@ -16,7 +16,8 @@ from .routes.strategy_lab import router as strategy_lab_router
 from .routes.system import router as system_router
 from .routes.analytics import router as analytics_router
 from .routes.fundamentals import router as fundamentals_router
-
+from .routes.paper_trading import router as paper_trading_router
+from .routes.trading_control import router as trading_control_router
 
 API_PREFIX = "/api/backend"
 
@@ -96,6 +97,8 @@ app.include_router(strategy_lab_router)
 app.include_router(system_router)
 app.include_router(analytics_router)
 app.include_router(fundamentals_router)
+app.include_router(paper_trading_router)
+app.include_router(trading_control_router)
 
 
 app.add_middleware(VercelPathMiddleware)
